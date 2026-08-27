@@ -402,11 +402,11 @@ function clearAll(silent){
   renderDmgList();
 }
 function exportJSON(){
-  const rows = damages.filter(d=>d.damageTypes.length).map(damageToRow);
-  const s = JSON.stringify(rows, null, 2);
-  navigator.clipboard && navigator.clipboard.writeText(s);
-  alert('JSON copié dans le presse-papier :\n\n'+s);
-  return s;
+  // IMPORTANT : on copie le message TAMPONNÉ (avec carstock/job), jamais un tableau nu.
+  // Un tableau nu dans le presse-papier peut être ré-appliqué au mauvais véhicule.
+  const msg = window.copierPourWindev();
+  alert('Copié dans le presse-papier :\n\n' + msg);
+  return msg;
 }
 
 /* ============ MAPPING PAGE ↔ BASE DE DONNÉES ============
@@ -508,9 +508,124 @@ window.getDamagesJSON = function(){
   return JSON.stringify(damages.filter(d=>d.damageTypes.length).map(damageToRow));
 };
 
+/* ================================================================
+   PONT WINDEV ↔ PAGE  (v14)
+   Corrige la contamination inter-OR : tout message sortant est
+   TAMPONNÉ avec le couple carstock/job courant. WinDev refuse
+   d'écrire si le tampon ne correspond pas à l'OR ouvert.
+   ================================================================ */
+
+window.__ctxCarstock = 0;
+window.__ctxJob      = 0;
+
+/* Appelé par WinDev AVANT tout chargement et avant chaque SAVE. */
+window.setContexte = function (carstock, job) {
+  window.__ctxCarstock = parseInt(carstock, 10) || 0;
+  window.__ctxJob      = parseInt(job, 10)      || 0;
+  console.log('[CTX] carstock=' + window.__ctxCarstock + ' job=' + window.__ctxJob);
+  return 'CTX:' + window.__ctxCarstock + '/' + window.__ctxJob;
+};
+
+/* Construit le message tamponné. damages est une CHAÎNE (double encodage),
+   c'est ce qu'attend SaveDamagesToDatabase côté WinDev. */
+function construireMessage(action) {
+  var rows = damages.filter(function (d) { return d.damageTypes.length; }).map(damageToRow);
+  return JSON.stringify({
+    action:   action || 'SAVE',
+    carstock: window.__ctxCarstock,
+    job:      window.__ctxJob,
+    count:    rows.length,
+    damages:  JSON.stringify(rows)
+  });
+}
+
+/* Écriture presse-papier tolérante Android WebView.
+   navigator.clipboard échoue sans geste utilisateur : on tente d'abord
+   le textarea + execCommand qui, lui, passe souvent. */
+function ecrirePressePapier(txt) {
+  var ok = false;
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = txt;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, txt.length);
+    ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+  } catch (e) { console.warn('[CLIP] execCommand KO', e); }
+  if (!ok && navigator.clipboard) {
+    try { navigator.clipboard.writeText(txt); ok = true; } catch (e) {}
+  }
+  console.log('[CLIP] écriture ' + (ok ? 'OK' : 'ÉCHEC'));
+  return ok;
+}
+
+/* Émission vers WinDev : on arrose les canaux possibles.
+   L'un d'eux déclenche l'événement 266 (OnReceivePostMessage). */
+function envoyerAWinDev(msg) {
+  var envoye = false;
+  try { window.parent.postMessage(msg, '*'); envoye = true; } catch (e) {}
+  try { if (window.parent !== window) window.postMessage(msg, '*'); } catch (e) {}
+  try { if (window.WinDev && window.WinDev.postMessage) { window.WinDev.postMessage(msg); envoye = true; } } catch (e) {}
+  try { if (window.Android && window.Android.postMessage) { window.Android.postMessage(msg); envoye = true; } } catch (e) {}
+  return envoye;
+}
+
+/* POINT D'ENTRÉE DU BOUTON SAVE WINDEV */
+window.envoyerSauvegarde = function () {
+  var msg = construireMessage('SAVE');
+  console.log('[SAVE] ' + msg.substring(0, 200));
+  envoyerAWinDev(msg);
+  ecrirePressePapier(msg);          // le MÊME message tamponné, jamais un tableau nu
+  return msg;
+};
+
+/* Repli explicite appelé par WinDev si le postMessage n'est pas arrivé. */
+window.copierPourWindev = function () {
+  var msg = construireMessage('SAVE');
+  ecrirePressePapier(msg);
+  return msg;
+};
+
+/* Diagnostics console */
+window.__saveDiag = function () {
+  return {
+    version: window.__version,
+    carstock: window.__ctxCarstock,
+    job: window.__ctxJob,
+    total: damages.length,
+    valides: damages.filter(function (d) { return d.damageTypes.length; }).length,
+    modelReady: _modelReady
+  };
+};
+window.__bridgeDiag = function () {
+  return {
+    setContexte: typeof window.setContexte,
+    envoyerSauvegarde: typeof window.envoyerSauvegarde,
+    copierPourWindev: typeof window.copierPourWindev,
+    chargerDommages: typeof window.chargerDommages,
+    initDamageTypes: typeof window.initDamageTypes,
+    parentDifferent: window.parent !== window,
+    execCommand: typeof document.execCommand
+  };
+};
+
+/* Annonce à WinDev que la page est prête (déclenche HTML_READY dans le 266). */
+function annoncerPret() {
+  envoyerAWinDev(JSON.stringify({ action: 'HTML_READY', version: window.__version }));
+}
+if (document.readyState === 'complete') { setTimeout(annoncerPret, 300); }
+else { window.addEventListener('load', function () { setTimeout(annoncerPret, 300); }); }
+
 /* Optionnel : signaler à WinDev que la page est prête à recevoir un modèle. */
 window.__READY = true;
-window.__version = "v13";
+window.__version = "v14";
 
 /* ============ BOUCLE ============ */
 function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene,camera); }
