@@ -381,7 +381,9 @@ function renderDmgList(){
       '<span class="co">'+d.x+','+d.y+','+d.z+'</span>';
     row.onclick=(e)=>{ if(e.target.classList.contains('del'))return; openPopup(i); };
     const del=document.createElement('span'); del.className='del'; del.textContent='✕';
-    del.onclick=(e)=>{ e.stopPropagation(); markerGroup.remove(d._marker); damages.splice(i,1); renderDmgList(); };
+    del.onclick=(e)=>{ e.stopPropagation();
+      if(d.damageId>0 && window.__deleted) window.__deleted.push(d.damageId);
+      markerGroup.remove(d._marker); damages.splice(i,1); renderDmgList(); };
     row.appendChild(del);
     box.appendChild(row);
   });
@@ -398,6 +400,11 @@ function renderThumbs(){
 }
 function clearAll(silent){
   if(!silent && damages.filter(d=>d.damageTypes.length).length && !confirm('Effacer tous les dégâts ?')) return;
+  // effacement MANUEL : on memorise les ids pour le champ "deleted" du SAVE.
+  // effacement SILENCIEUX (rechargement/changement de modele) : ce n'est pas une suppression metier.
+  if(!silent && window.__deleted){
+    damages.forEach(d=>{ if(d.damageId>0) window.__deleted.push(d.damageId); });
+  }
   damages=[]; while(markerGroup.children.length) markerGroup.remove(markerGroup.children[0]);
   renderDmgList();
 }
@@ -495,6 +502,7 @@ window.chargerDommages = function(json){
       catch(e){ arr = JSON.parse(json.replace(/(\d),(\d)/g,'$1.$2').replace(/\s+(?=[\d\-.])/g,'')); } // virgule décimale FR
     }
     clearAll(true);
+    window.__deleted = [];   // nouveau chargement = nouvelle ardoise de suppressions
     (arr||[]).forEach(o => { const d = rowToDamage(o); damages.push(d); addMarker(d); });
     renderDmgList();
     console.log('[chargerDommages] '+damages.length+' dégât(s) affiché(s)');
@@ -517,6 +525,7 @@ window.getDamagesJSON = function(){
 
 window.__ctxCarstock = 0;
 window.__ctxJob      = 0;
+window.__deleted     = [];   // damage_id supprimes depuis le dernier CHARGER
 
 /* Appelé par WinDev AVANT tout chargement et avant chaque SAVE. */
 window.setContexte = function (carstock, job) {
@@ -531,11 +540,12 @@ window.setContexte = function (carstock, job) {
 function construireMessage(action) {
   var rows = damages.filter(function (d) { return d.damageTypes.length; }).map(damageToRow);
   return JSON.stringify({
-    action:   action || 'SAVE',
+    action:   action || 'GET_DAMAGES_RESPONSE',
     carstock: window.__ctxCarstock,
     job:      window.__ctxJob,
     count:    rows.length,
-    damages:  JSON.stringify(rows)
+    damages:  JSON.stringify(rows),        // CHAINE, pas un tableau : WinDev attend un string
+    deleted:  JSON.stringify(window.__deleted || [])
   });
 }
 
@@ -579,19 +589,24 @@ function envoyerAWinDev(msg) {
 
 /* POINT D'ENTRÉE DU BOUTON SAVE WINDEV */
 window.envoyerSauvegarde = function () {
-  var msg = construireMessage('SAVE');
-  console.log('[SAVE] ' + msg.substring(0, 200));
+  if (!window.__ctxJob) { console.warn('[SAVE] contexte absent — WinDev va rejeter'); }
+  var msg = construireMessage('GET_DAMAGES_RESPONSE');
+  console.log('[SAVE] ' + msg.substring(0, 250));
   envoyerAWinDev(msg);
-  ecrirePressePapier(msg);          // le MÊME message tamponné, jamais un tableau nu
+  ecrirePressePapier(msg);          // MÊME message tamponné dans les deux canaux
   return msg;
 };
 
 /* Repli explicite appelé par WinDev si le postMessage n'est pas arrivé. */
 window.copierPourWindev = function () {
-  var msg = construireMessage('SAVE');
+  var msg = construireMessage('GET_DAMAGES_RESPONSE');
   ecrirePressePapier(msg);
   return msg;
 };
+
+/* Vidage explicite : la page s'ouvre vierge, mais WinDev peut aussi forcer. */
+window.effacerTousLesDegats = function () { clearAll(true); window.__deleted = []; return 'CLEARED'; };
+window.viderCanvas          = window.effacerTousLesDegats;
 
 /* Diagnostics console */
 window.__saveDiag = function () {
@@ -625,7 +640,7 @@ else { window.addEventListener('load', function () { setTimeout(annoncerPret, 30
 
 /* Optionnel : signaler à WinDev que la page est prête à recevoir un modèle. */
 window.__READY = true;
-window.__version = "v14";
+window.__version = "v15";
 
 /* ============ BOUCLE ============ */
 function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene,camera); }
