@@ -5,7 +5,6 @@
 var LANG_DATA = {
   btnSave:        'Opslaan',
   btnClearAll:    'Alles wissen',
-  btnCharger:     'Laden',
   btnCancel:      'Annuleren',
   btnOk:          'Bevestigen',
   lblVehicle:     'Voertuigmodel',
@@ -29,5 +28,12 @@ var LANG_DATA = {
   errParse:       'Parseerfout model (zie console)',
   errLoad:        'Laadfout — serveer de map via HTTP',
   errBase64:      'Base64-fout (zie console)',
-  memoPlaceholder:'Optionele opmerking…'
+  memoPlaceholder:'Optionele opmerking…',
+  dmgRust:        'Roest',
+  dmgDent:        'Deuk',
+  dmgHail:        'Hagel',
+  dmgBirdpoop:    'Vogelpoep',
+  dmgScratch:     'Kras',
+  dmgCrack:       'Barst voorruit',
+  dmgStar:        'Ster voorruit'
 };
