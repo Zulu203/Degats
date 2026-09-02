@@ -5,7 +5,6 @@
 var LANG_DATA = {
   btnSave:        'Save',
   btnClearAll:    'Clear all',
-  btnCharger:     'Load',
   btnCancel:      'Cancel',
   btnOk:          'Confirm',
   lblVehicle:     'Vehicle model',
@@ -29,5 +28,12 @@ var LANG_DATA = {
   errParse:       'Model parse error (see console)',
   errLoad:        'Load error — serve folder via HTTP',
   errBase64:      'Base64 error (see console)',
-  memoPlaceholder:'Optional comment…'
+  memoPlaceholder:'Optional comment…',
+  dmgRust:        'Rust',
+  dmgDent:        'Dent',
+  dmgHail:        'Hail',
+  dmgBirdpoop:    'Birdpoop',
+  dmgScratch:     'Scratch',
+  dmgCrack:       'Windshield crack',
+  dmgStar:        'Windshield star'
 };
