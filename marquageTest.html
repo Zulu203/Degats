@@ -293,6 +293,7 @@ function loadPlaceholder(){
 }
 
 function requestVehicle(id){
+  _modelReady = false;
   if(FILE_MODE){
     if(typeof window.__onVehiclePick==='function') window.__onVehiclePick(id);
   } else {
