@@ -7,7 +7,6 @@
 var LANG_DATA = {
   btnSave:        'Enregistrer',
   btnClearAll:    'Tout effacer',
-  btnCharger:     'Charger',
   btnCancel:      'Annuler',
   btnOk:          'Valider',
   lblVehicle:     'Modèle de véhicule',
@@ -31,5 +30,12 @@ var LANG_DATA = {
   errParse:       'Erreur de parsing du modèle (voir console)',
   errLoad:        'Erreur de chargement — sers le dossier en HTTP',
   errBase64:      'Erreur base64 (voir console)',
-  memoPlaceholder:'Commentaire optionnel…'
+  memoPlaceholder:'Commentaire optionnel…',
+  dmgRust:        'Rouille',
+  dmgDent:        'Bosse',
+  dmgHail:        'Grêle',
+  dmgBirdpoop:    'Fiente',
+  dmgScratch:     'Rayure',
+  dmgCrack:       'Fissure pare-brise',
+  dmgStar:        'Éclat pare-brise'
 };
