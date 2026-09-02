@@ -94,7 +94,6 @@
     </div>
     <div class="actions">
       <button class="btn" id="btnClearAll" onclick="clearAll()"></button>
-      <button class="btn" id="btnCharger" onclick="demanderChargement()"></button>
       <button class="btn primary" onclick="exportJSON()">JSON</button>
     </div>
   </div>
@@ -165,7 +164,6 @@ function applyI18n() {
   document.getElementById('lblGravity').textContent = t('lblGravity');
   document.getElementById('lblNote').textContent = t('lblNote');
   document.getElementById('btnClearAll').textContent = t('btnClearAll');
-  document.getElementById('btnCharger').textContent = t('btnCharger');
   document.getElementById('btnPopupCancel').textContent = t('btnCancel');
   document.getElementById('btnPopupOk').textContent = t('btnOk');
   document.getElementById('memo').placeholder = t('memoPlaceholder');
@@ -176,10 +174,10 @@ const FILE_MODE = (location.protocol === 'file:');
 
 /* ============ DONNÉES ============ */
 const DAMAGE_TYPES = [
-  {id:1,name:'Rust',icon:'🦠'},{id:2,name:'Dent',icon:'🔨'},
-  {id:3,name:'Hail',icon:'❄️'},{id:4,name:'Birdpoop',icon:'💩'},
-  {id:5,name:'Scratch',icon:'✏️'},{id:6,name:'Windshield crack',icon:'💠'},
-  {id:7,name:'Windshield star',icon:'✴️'},
+  {id:1,name:t('dmgRust'),icon:'🦠'},{id:2,name:t('dmgDent'),icon:'🔨'},
+  {id:3,name:t('dmgHail'),icon:'❄️'},{id:4,name:t('dmgBirdpoop'),icon:'💩'},
+  {id:5,name:t('dmgScratch'),icon:'✏️'},{id:6,name:t('dmgCrack'),icon:'💠'},
+  {id:7,name:t('dmgStar'),icon:'✴️'},
 ];
 const GRAVITIES = [
   {id:1,color:'#5dcaa5'},
@@ -602,36 +600,23 @@ window.setContexte = function (carstock, job, vehicleModel) {
   return 'CTX:' + window.__ctxCarstock + '/' + window.__ctxJob + '/M' + window.__ctxModel;
 };
 
-/* Premier choix de véhicule par l'utilisateur (quand __ctxModel === 0) */
-function onFirstVehicleChoice(vehicleId) {
-  // trouver l'index numérique du véhicule
-  var idx = VEHICLES.findIndex(function(v) { return v.id === vehicleId; });
-  if (idx >= 0) {
-    window.__ctxModel = idx + 1;  // 1-based
-    renderThumbs();
-    console.log('[VEHICLE] premier choix verrouillé: model=' + window.__ctxModel);
-  }
-}
-
-/* Override requestVehicle pour capturer le premier choix */
-var _origRequestVehicle = requestVehicle;
-function requestVehicle(id) {
-  // Si pas encore de modèle choisi → verrouiller ce choix
-  if (window.__ctxModel === 0) {
-    onFirstVehicleChoice(id);
-  }
-  _origRequestVehicle(id);
-}
-
 /* Construit le message tamponné */
 function construireMessage(action) {
   var rows = damages.filter(function (d) { return d.damageTypes.length; }).map(damageToRow);
 
-  // S'assurer que le tag [M:X] est sur le memo du premier dégât
-  if (window.__ctxModel > 0 && rows.length > 0) {
+  // Déterminer le modèle à tamponner
+  var modelToSave = window.__ctxModel;
+  if (modelToSave === 0) {
+    // premier save → on note le véhicule actuellement affiché
+    var idx = VEHICLES.findIndex(function(v) { return v.id === currentVehicleId; });
+    if (idx >= 0) modelToSave = idx + 1;
+  }
+
+  // Tamponner [M:X] dans le memo du premier dégât
+  if (modelToSave > 0 && rows.length > 0) {
     var first = rows[0];
     if (first.memo.indexOf('[M:') === -1) {
-      first.memo = '[M:' + window.__ctxModel + '] ' + first.memo;
+      first.memo = '[M:' + modelToSave + '] ' + first.memo;
     }
   }
 
@@ -696,12 +681,6 @@ window.copierPourWindev = function () {
 window.effacerTousLesDegats = function () { clearAll(true); window.__deleted = []; return 'CLEARED'; };
 window.viderCanvas          = window.effacerTousLesDegats;
 
-/* ---- Bouton CHARGER : demande à WinDev de pousser les données ---- */
-function demanderChargement() {
-  console.log('[CHARGER] demande envoyée à WinDev');
-  envoyerAWinDev(JSON.stringify({ action: 'DEMANDE_CHARGEMENT' }));
-}
-
 /* Diagnostics console */
 window.__saveDiag = function () {
   return {
@@ -736,12 +715,8 @@ else { window.addEventListener('load', function () { setTimeout(annoncerPret, 30
 window.__READY = true;
 window.__version = "v16";
 
-/* ============ AUTO-CLIC SUR CHARGER À L'OUVERTURE ============ */
 window.addEventListener('DOMContentLoaded', function() {
-  applyI18n();    // appliquer les textes traduits
-  setTimeout(function() {
-    document.getElementById('btnCharger').click();
-  }, 500);
+  applyI18n();
 });
 
 /* ============ BOUCLE ============ */
