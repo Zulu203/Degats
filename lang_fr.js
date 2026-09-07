@@ -34,7 +34,7 @@ var LANG_DATA = {
   dmgRust:        'Rouille',
   dmgDent:        'Bosse',
   dmgHail:        'Grêle',
-  dmgBirdpoop:    'Fiente',
+  dmgBirdpoop:    'Default de peinture',
   dmgScratch:     'Rayure',
   dmgCrack:       'Fissure pare-brise',
   dmgStar:        'Éclat pare-brise'
