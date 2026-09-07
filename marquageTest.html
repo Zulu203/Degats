@@ -211,6 +211,7 @@ const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.setSize(wrap.clientWidth, wrap.clientHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.setClearColor(0xeef1f5);
 wrap.appendChild(renderer.domElement);
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.9));
