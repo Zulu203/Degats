@@ -59,6 +59,12 @@
   #popup .pf button{flex:1; padding:6px; font-size:12px; border-radius:6px; cursor:pointer; border:1px solid var(--border); background:var(--panel);}
   #popup .pf button.ok{background:var(--accent); color:#fff; border-color:var(--accent);}
   textarea#memo{width:100%; border:1px solid var(--border); border-radius:6px; padding:5px 7px; font-size:11px; font-family:inherit; resize:vertical; min-height:28px; margin-top:2px;}
+  .photoRow{display:flex; flex-wrap:wrap; gap:6px; margin-top:2px;}
+  .photoChip{position:relative; width:44px; height:44px; border:1px solid var(--border); border-radius:6px; background:var(--accent-bg); display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer;}
+  .photoChip.pending{opacity:.5; cursor:default;}
+  .photoChip .rm{position:absolute; top:-6px; right:-6px; width:16px; height:16px; border-radius:50%; background:var(--danger); color:#fff; font-size:10px; line-height:16px; text-align:center; cursor:pointer;}
+  #btnAddPhoto{width:100%; margin-top:6px;}
+  .dmgRow .ph{color:var(--muted); font-size:11px;}
 </style>
 </head>
 <body>
@@ -76,6 +82,9 @@
         <div class="gravRow" id="gravRow"></div>
         <div class="plabel" id="lblNote" style="margin-top:8px;"></div>
         <textarea id="memo"></textarea>
+        <div class="plabel" id="lblPhotos" style="margin-top:8px;"></div>
+        <div class="photoRow" id="photoRow"></div>
+        <button type="button" class="btn" id="btnAddPhoto" onclick="requestPhoto()"></button>
       </div>
       <div class="pf">
         <button id="btnPopupCancel" onclick="closePopup(true)"></button>
@@ -167,6 +176,8 @@ function applyI18n() {
   document.getElementById('btnPopupCancel').textContent = t('btnCancel');
   document.getElementById('btnPopupOk').textContent = t('btnOk');
   document.getElementById('memo').placeholder = t('memoPlaceholder');
+  document.getElementById('lblPhotos').textContent = t('lblPhotos');
+  document.getElementById('btnAddPhoto').textContent = t('btnAddPhoto');
 }
 
 /* ============ DÉTECTION DU CONTEXTE ============ */
@@ -323,7 +334,7 @@ renderer.domElement.addEventListener('pointerup', e=>{
   const dmg = {
     damageId: nextId(),
     x:+local.x.toFixed(4), y:+local.y.toFixed(4), z:+local.z.toFixed(4),
-    memo:'', gravity:2, damageTypes:[], _world:hits[0].point.clone()
+    memo:'', gravity:2, damageTypes:[], images:[], _world:hits[0].point.clone()
   };
   damages.push(dmg);
   addMarker(dmg);
@@ -369,7 +380,7 @@ function openPopup(index, screenX, screenY){
   draftGravity = d.gravity;
   document.getElementById('popupTitle').textContent = t('titlePopup') + d.damageId;
   document.getElementById('memo').value = stripModelTag(d.memo);
-  renderTypeList(); renderGravRow();
+  renderTypeList(); renderGravRow(); renderPhotoRow();
   const pop = document.getElementById('popup');
   pop.style.display='block';
   const stage = document.getElementById('stage').getBoundingClientRect();
@@ -410,6 +421,56 @@ function renderGravRow(){
     box.appendChild(el);
   });
 }
+const MAX_PHOTOS = 6;
+function renderPhotoRow(){
+  const box=document.getElementById('photoRow'); if(!box) return; box.innerHTML='';
+  const d = damages[editingIndex];
+  if(!d) return;
+  (d.images||[]).forEach(function(im){
+    const el=document.createElement('div');
+    el.className='photoChip'+(im.pending?' pending':'');
+    el.title=im.path||'';
+    el.innerHTML='📷'+(im.pending?'':'<span class="rm">✕</span>');
+    el.onclick=function(e){
+      if(e.target.classList.contains('rm')){ e.stopPropagation(); removePhoto(im.path); return; }
+      if(!im.pending) viewPhoto(im.path);
+    };
+    box.appendChild(el);
+  });
+  const btn=document.getElementById('btnAddPhoto');
+  if(btn) btn.disabled = (d.images||[]).length >= MAX_PHOTOS;
+}
+function requestPhoto(){
+  const d = damages[editingIndex];
+  if(!d) return;
+  if((d.images||[]).length>=MAX_PHOTOS){ alert(t('maxPhotos')); return; }
+  envoyerAWinDev(JSON.stringify({
+    action:'REQUEST_PHOTO', damageId:d.damageId,
+    carstock:window.__ctxCarstock, job:window.__ctxJob
+  }));
+}
+function removePhoto(path){
+  const d = damages[editingIndex];
+  if(!d) return;
+  if(!confirm(t('confirmDeletePhoto'))) return;
+  d.images = (d.images||[]).filter(function(im){ return im.path!==path; });
+  renderPhotoRow();
+  renderDmgList();
+  envoyerAWinDev(JSON.stringify({ action:'DELETE_PHOTO', damageId:d.damageId, path:path }));
+}
+function viewPhoto(path){
+  envoyerAWinDev(JSON.stringify({ action:'VIEW_PHOTO', path:path }));
+}
+/* Appelé par WinDev une fois la photo capturée et uploadée sur le serveur d'images */
+window.ajouterPhoto = function(damageId, path){
+  const d = damages.find(function(x){ return x.damageId===+damageId; });
+  if(!d || !path) return 'ERR:not_found';
+  d.images = d.images || [];
+  d.images.push({path:path});
+  if(editingIndex!==null && damages[editingIndex]===d) renderPhotoRow();
+  renderDmgList();
+  return 'OK';
+};
 function confirmPopup(){
   const d=damages[editingIndex];
   if(draftTypes.length===0){ alert(t('noType')); return; }
@@ -452,6 +513,7 @@ function renderDmgList(){
     row.innerHTML='<span class="gravDot" style="background:'+grav.color+'"></span>'+
       '<span class="id">#'+d.damageId+'</span>'+
       '<span>'+d.damageTypes.map(tp=>tp.icon).join('')+'</span>'+
+      ((d.images&&d.images.length) ? '<span class="ph">📷'+d.images.length+'</span>' : '')+
       '<span class="co">'+d.x+','+d.y+','+d.z+'</span>';
     row.onclick=(e)=>{ if(e.target.classList.contains('del'))return; openPopup(i); };
     const del=document.createElement('span'); del.className='del'; del.textContent='✕';
@@ -498,12 +560,16 @@ function damageToRow(d){
     position_zvalue: d.z,
     damage_level: d.gravity,
     memo: d.memo || '',
+    digital: (d.images||[]).map(function(im){ return im.path; }).join(','),
     idcarstock_damage1: tp[0] ? tp[0].id : 0,
     idcarstock_damage2: tp[1] ? tp[1].id : 0,
     idcarstock_damage3: tp[2] ? tp[2].id : 0,
     idcarstock_damage4: tp[3] ? tp[3].id : 0,
     idcarstock_damage5: tp[4] ? tp[4].id : 0
   };
+}
+function parseDigital(s){
+  return String(s||'').split(',').map(function(p){ return p.trim(); }).filter(Boolean).map(function(p){ return {path:p}; });
 }
 function rowToDamage(o){
   const types = [];
@@ -522,6 +588,7 @@ function rowToDamage(o){
     memo: o.memo || '',
     gravity: +o.damage_level || 2,
     damageTypes: types,
+    images: parseDigital(o.digital),
     _world: carGroup ? carGroup.localToWorld(new THREE.Vector3(x,y,z)) : new THREE.Vector3(x,y,z)
   };
 }
@@ -715,7 +782,7 @@ if (document.readyState === 'complete') { setTimeout(annoncerPret, 300); }
 else { window.addEventListener('load', function () { setTimeout(annoncerPret, 300); }); }
 
 window.__READY = true;
-window.__version = "v16";
+window.__version = "v17";
 
 window.addEventListener('DOMContentLoaded', function() {
   applyI18n();

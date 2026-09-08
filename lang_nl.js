@@ -35,5 +35,9 @@ var LANG_DATA = {
   dmgBirdpoop:    'Vogelpoep',
   dmgScratch:     'Kras',
   dmgCrack:       'Barst voorruit',
-  dmgStar:        'Ster voorruit'
+  dmgStar:        'Ster voorruit',
+  lblPhotos:      "Foto's",
+  btnAddPhoto:    "+ Foto toevoegen",
+  confirmDeletePhoto: 'Deze foto verwijderen?',
+  maxPhotos:      "Maximaal 6 foto's"
 };

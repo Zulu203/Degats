@@ -37,5 +37,9 @@ var LANG_DATA = {
   dmgBirdpoop:    'Default de peinture',
   dmgScratch:     'Rayure',
   dmgCrack:       'Fissure pare-brise',
-  dmgStar:        'Éclat pare-brise'
+  dmgStar:        'Éclat pare-brise',
+  lblPhotos:      'Photos',
+  btnAddPhoto:    '+ Ajouter une photo',
+  confirmDeletePhoto: 'Supprimer cette photo ?',
+  maxPhotos:      'Maximum 6 photos'
 };

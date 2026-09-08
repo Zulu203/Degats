@@ -35,5 +35,9 @@ var LANG_DATA = {
   dmgBirdpoop:    'Birdpoop',
   dmgScratch:     'Scratch',
   dmgCrack:       'Windshield crack',
-  dmgStar:        'Windshield star'
+  dmgStar:        'Windshield star',
+  lblPhotos:      'Photos',
+  btnAddPhoto:    '+ Add photo',
+  confirmDeletePhoto: 'Delete this photo?',
+  maxPhotos:      'Maximum 6 photos'
 };
