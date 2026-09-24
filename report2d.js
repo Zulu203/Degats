@@ -86,24 +86,39 @@ function drawDamageMarker(ctx, d, camera){
   var x = (p.x * 0.5 + 0.5) * REPORT_W;
   var y = (-p.y * 0.5 + 0.5) * REPORT_H;
   var g = GRAVITIES.find(function(xg){ return xg.id === d.gravity; }) || GRAVITIES[1];
+  var dir = (d.damageId % 2 === 0) ? 1 : -1;
+  var lx = Math.max(14, Math.min(REPORT_W - 14, x + dir * 24));
+  var ly = Math.max(14, Math.min(REPORT_H - 14, y - 24));
+
   ctx.save();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(31,45,61,.72)';
   ctx.beginPath();
-  ctx.arc(x,y,18,0,Math.PI*2);
-  ctx.fillStyle = g.color;
+  ctx.moveTo(x,y);
+  ctx.lineTo(lx,ly);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(x,y,3.5,0,Math.PI*2);
+  ctx.fillStyle = '#263442';
   ctx.fill();
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 1.5;
   ctx.strokeStyle = '#ffffff';
   ctx.stroke();
+
   ctx.beginPath();
-  ctx.arc(x,y,20,0,Math.PI*2);
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = '#1c1e21';
+  ctx.arc(lx,ly,11,0,Math.PI*2);
+  ctx.fillStyle = g.color;
+  ctx.fill();
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = '#ffffff';
   ctx.stroke();
+
   ctx.fillStyle = '#ffffff';
-  ctx.font = '700 19px Arial';
+  ctx.font = '700 12px Arial';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(String(d.damageId),x,y+1);
+  ctx.fillText(String(d.damageId),lx,ly+0.5);
   ctx.restore();
 }
 

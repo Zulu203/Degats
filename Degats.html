@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Marquage des dégâts — iReach (WinDev)</title>
-<link rel="stylesheet" href="report2d.css">
+<link rel="stylesheet" href="report2d.css?v=18">
 <style>
   :root{
     --bg:#f4f5f7; --panel:#ffffff; --border:#e2e4e9; --text:#1c1e21;
@@ -718,7 +718,7 @@ if (document.readyState === 'complete') { setTimeout(annoncerPret, 300); }
 else { window.addEventListener('load', function () { setTimeout(annoncerPret, 300); }); }
 
 window.__READY = true;
-window.__version = "v17";
+window.__version = "v18";
 
 window.addEventListener('DOMContentLoaded', function() {
   applyI18n();
@@ -743,6 +743,6 @@ if(FILE_MODE){ loadPlaceholder(); }
 else { loadVehicleFromFile(currentVehicleId); }
 animate();
 </script>
-<script src="report2d.js"></script>
+<script src="report2d.js?v=18"></script>
 </body>
 </html>
