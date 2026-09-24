@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Marquage des dégâts — iReach (WinDev)</title>
+<link rel="stylesheet" href="report2d.css">
 <style>
   :root{
     --bg:#f4f5f7; --panel:#ffffff; --border:#e2e4e9; --text:#1c1e21;
@@ -94,6 +95,7 @@
     </div>
     <div class="actions">
       <button class="btn" id="btnClearAll" onclick="clearAll()"></button>
+      <button class="btn" id="btnReport2D" onclick="open2DReport()"></button>
       <button class="btn primary" onclick="exportJSON()">JSON</button>
     </div>
   </div>
@@ -111,6 +113,8 @@
 <script>
   /* Charger le fichier de la langue choisie (si pas FR, sinon LANG_DATA reste le FR) */
   var _urlLang = new URLSearchParams(window.location.search).get('lang') || 'fr';
+  var _allowedLangs = ['fr','nl','en'];
+  if (_allowedLangs.indexOf(_urlLang) === -1) _urlLang = 'fr';
   if (_urlLang !== 'fr') {
     document.write('<script src="lang_' + _urlLang + '.js"><\/script>');
   }
@@ -129,7 +133,6 @@
    choisie par-dessus. Les clés manquantes tombent sur le français. */
 
 /* LANG_FR = copie du français (chargé par lang_fr.js avant ce script) */
-var LANG_FR = {};
 var T = {};
 
 function initI18n() {
@@ -715,7 +718,7 @@ if (document.readyState === 'complete') { setTimeout(annoncerPret, 300); }
 else { window.addEventListener('load', function () { setTimeout(annoncerPret, 300); }); }
 
 window.__READY = true;
-window.__version = "v16";
+window.__version = "v17";
 
 window.addEventListener('DOMContentLoaded', function() {
   applyI18n();
@@ -740,5 +743,6 @@ if(FILE_MODE){ loadPlaceholder(); }
 else { loadVehicleFromFile(currentVehicleId); }
 animate();
 </script>
+<script src="report2d.js"></script>
 </body>
 </html>
