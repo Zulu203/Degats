@@ -24,7 +24,8 @@
 .report2d-header{
   display:flex; justify-content:space-between; gap:20px;
   padding-bottom:14px; border-bottom:2px solid #263442;
-}.report2d-title{font-size:24px; font-weight:700; margin:0 0 5px;}
+}
+.report2d-title{font-size:24px; font-weight:700; margin:0 0 5px;}
 .report2d-subtitle{font-size:12px; color:#667085;}
 .report2d-meta{
   display:grid; grid-template-columns:auto auto; gap:4px 14px;
@@ -49,7 +50,8 @@
 .report2d-view img{display:block; width:100%; aspect-ratio:16/9; object-fit:contain;}
 .report2d-summary{margin-top:18px;}
 .report2d-summary h2{font-size:16px; margin:0 0 8px;}
-.report2d-table{width:100%; border-collapse:collapse; font-size:11px;}.report2d-table th,.report2d-table td{
+.report2d-table{width:100%; border-collapse:collapse; font-size:11px;}
+.report2d-table th,.report2d-table td{
   padding:6px 7px; border:1px solid #dfe3e8; vertical-align:top;
 }
 .report2d-table th{background:#f7f8fa; text-align:left; font-weight:650;}

@@ -24,7 +24,9 @@ function escapeHtml(value){
   return String(value == null ? '' : value)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}function validDamages(){
+}
+
+function validDamages(){
   return damages.filter(function(d){ return d && d.damageTypes && d.damageTypes.length; });
 }
 
@@ -53,7 +55,8 @@ function makeCamera(def, box, aspect){
   var naturalW = def.axis === 'x' ? size.z : size.x;
   var naturalH = def.id === 'top' ? size.z : size.y;
   naturalW = Math.max(naturalW * 1.22, 0.5);
-  naturalH = Math.max(naturalH * 1.22, 0.5);  if (naturalW / naturalH > aspect) naturalH = naturalW / aspect;
+  naturalH = Math.max(naturalH * 1.22, 0.5);
+  if (naturalW / naturalH > aspect) naturalH = naturalW / aspect;
   else naturalW = naturalH * aspect;
 
   var dist = Math.max(size.x,size.y,size.z) * 5 + 5;
@@ -82,7 +85,8 @@ function drawDamageMarker(ctx, d, camera){
   if (p.z < -1 || p.z > 1) return;
   var x = (p.x * 0.5 + 0.5) * REPORT_W;
   var y = (-p.y * 0.5 + 0.5) * REPORT_H;
-  var g = GRAVITIES.find(function(xg){ return xg.id === d.gravity; }) || GRAVITIES[1];  ctx.save();
+  var g = GRAVITIES.find(function(xg){ return xg.id === d.gravity; }) || GRAVITIES[1];
+  ctx.save();
   ctx.beginPath();
   ctx.arc(x,y,18,0,Math.PI*2);
   ctx.fillStyle = g.color;
@@ -114,7 +118,9 @@ function captureView(def, box, items){
   var oldMarkerVisible = markerGroup.visible;
   markerGroup.visible = false;
   off.render(scene,camera2D);
-  markerGroup.visible = oldMarkerVisible;  var canvas = document.createElement('canvas');
+  markerGroup.visible = oldMarkerVisible;
+
+  var canvas = document.createElement('canvas');
   canvas.width = REPORT_W; canvas.height = REPORT_H;
   var ctx = canvas.getContext('2d');
   ctx.drawImage(off.domElement,0,0,REPORT_W,REPORT_H);
@@ -143,7 +149,8 @@ function ensureOverlay(){
       '</div>' +
       '<div class="report2d-paper">' +
         '<div class="report2d-header">' +
-          '<div><h1 class="report2d-title" id="report2DTitle"></h1><div class="report2d-subtitle" id="report2DGenerated"></div></div>' +          '<dl class="report2d-meta">' +
+          '<div><h1 class="report2d-title" id="report2DTitle"></h1><div class="report2d-subtitle" id="report2DGenerated"></div></div>' +
+          '<dl class="report2d-meta">' +
             '<dt id="report2DCarstockLabel"></dt><dd id="report2DCarstock"></dd>' +
             '<dt id="report2DJobLabel"></dt><dd id="report2DJob"></dd>' +
             '<dt id="report2DModelLabel"></dt><dd id="report2DModel"></dd>' +
@@ -169,7 +176,8 @@ function ensureOverlay(){
 function applyReportTexts(){
   document.getElementById('report2DTitle').textContent = tr('reportTitle','Rapport des dégâts');
   document.getElementById('report2DRefresh').textContent = tr('reportRefresh','Actualiser');
-  document.getElementById('report2DClose').textContent = tr('reportClose','Fermer');  document.getElementById('report2DPrint').textContent = tr('reportPrint','Imprimer');
+  document.getElementById('report2DClose').textContent = tr('reportClose','Fermer');
+  document.getElementById('report2DPrint').textContent = tr('reportPrint','Imprimer');
   document.getElementById('report2DCarstockLabel').textContent = tr('reportCarstock','Véhicule');
   document.getElementById('report2DJobLabel').textContent = tr('reportJob','OR');
   document.getElementById('report2DModelLabel').textContent = tr('reportModel','Modèle');
@@ -196,7 +204,8 @@ function fillViews(box,items){
   VIEW_DEFS.forEach(function(def){
     var shot = captureView(def,box,items);
     lastViewStats.push({id:def.id,count:shot.count,ids:shot.ids});
-    var card = document.createElement('div');    card.className = 'report2d-view report2d-view-' + def.id;
+    var card = document.createElement('div');
+    card.className = 'report2d-view report2d-view-' + def.id;
     var head = document.createElement('div'); head.className = 'report2d-view-head';
     var label = document.createElement('span'); label.textContent = tr(def.label,def.fallback);
     var count = document.createElement('span'); count.className = 'report2d-view-count';
@@ -224,7 +233,8 @@ function fillSummary(items){
       trEl.innerHTML =
         '<td class="num">' + escapeHtml(d.damageId) + '</td>' +
         '<td>' + escapeHtml(types) + '</td>' +
-        '<td class="sev"><span class="report2d-dot" style="background:' + grav.color + '"></span>' +          escapeHtml(gravName(d.gravity)) + '</td>' +
+        '<td class="sev"><span class="report2d-dot" style="background:' + grav.color + '"></span>' +
+          escapeHtml(gravName(d.gravity)) + '</td>' +
         '<td>' + escapeHtml(memo) + '</td>' +
         '<td class="report2d-position">' +
           escapeHtml((+d.x).toFixed(4) + ', ' + (+d.y).toFixed(4) + ', ' + (+d.z).toFixed(4)) +
@@ -260,7 +270,9 @@ function open2DReport(){
   }
   document.getElementById('report2DOverlay').classList.add('open');
   return true;
-}function close2DReport(){
+}
+
+function close2DReport(){
   var overlay = document.getElementById('report2DOverlay');
   if (overlay) overlay.classList.remove('open');
 }
