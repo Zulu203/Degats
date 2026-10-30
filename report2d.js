@@ -36,7 +36,8 @@ var INFO = {
   reference:'',
   intro:'',          // phrase d'introduction (%name %role %city %address)
   commitment:'',     // phrase avant l'encadré des dégâts
-  clauses:[],        // clauses a) b) c)… affichées sous la liste des dégâts (optionnel)
+  clauses:null,      // conditions générales a) b) c)… — null = texte par défaut (traductions),
+                     // tableau ou texte (1 clause par ligne) = texte propre, false = masquées
   place:'',          // « Fait à … » (défaut : company.city)
   copies:2,
   time:'',
@@ -271,7 +272,7 @@ function headerHtml(){
       fieldRow(tr('reportFieldFuel','Niveau carburant'), v.fuel) +
       fieldRow(tr('reportFieldFile','Dossier (OR / véhicule n°)'), [jobNo, carstock].filter(Boolean).join(' / ')) +
     '</table>' +
-    '<p class="rp-intro">' + escapeHtml(INFO.commitment || tr('reportCommitment','Par signature de la présente, le client reconnaît l’exactitude des dégâts relevés ci-dessous ; tout dégât non mentionné est réputé absent au moment de la prise en charge :')) + '</p>'
+    '<p class="rp-intro">' + escapeHtml(INFO.commitment || tr('reportCommitment','Par signature de la présente, la partie locataire du dit véhicule reconnaît l’exactitude des dégâts relevés ci-dessous, adhère et s’engage à respecter les clauses du présent document :')) + '</p>'
   );
 }
 
@@ -285,6 +286,22 @@ function damageLine(d, box){
     (memo ? ' : ' + escapeHtml(memo) : '') + (n ? ' <span class="rp-dl-photos">📷 ' + n + '</span>' : '') + '</span></li>';
 }
 
+var DEFAULT_CLAUSES_FR = 'Le véhicule est mis à disposition propre intérieur et extérieur, et sans dégât matériel autre que ceux relevés au présent document ;|Le véhicule devra être restitué dans son état de départ, propre intérieur et extérieur, à défaut un forfait de 40 euros TTC sera facturé ;|Le véhicule reste sous la responsabilité du client jusqu’à sa restitution ;|Tout dégât matériel seul ou en tort est à la charge du client ;|Toute infraction au code de la route sera à la charge du client ;|Le carburant est à la charge du client (appoint avec ticket faisant preuve) ; le carburant manquant sera facturé à 3 euros par litre (ticket de remplissage faisant preuve) ;|Il est interdit de fumer, boire ou manger dans le véhicule ;|La limite est de 150 km par jour ;|Une remise-reprise du véhicule mis à disposition sera faite avec un responsable du garage.';
+function getClauses(){
+  var c = INFO.clauses;
+  if (c === false) return [];
+  if (typeof c === 'string') c = c.split(/\r?\n|\|/);
+  if (!Array.isArray(c)) c = tr('reportClauses', DEFAULT_CLAUSES_FR).split('|');
+  return c.map(function(x){ return String(x).trim(); }).filter(Boolean);
+}
+function clausesHtml(){
+  var list = getClauses();
+  if (!list.length) return '';
+  return '<ol class="rp-clauses">' + list.map(function(cl, i){
+    return '<li><span class="rp-cl-l">' + String.fromCharCode(97 + (i % 26)) + ')</span><span>' + escapeHtml(cl) + '</span></li>';
+  }).join('') + '</ol>';
+}
+
 function viewsHtml(box, items){
   lastViewStats = [];
   var shots = {};
@@ -296,9 +313,7 @@ function viewsHtml(box, items){
   var list = items.length
     ? '<ol class="rp-dlist">' + items.map(function(d){ return damageLine(d, box); }).join('') + '</ol>'
     : '<p class="rp-empty">' + escapeHtml(tr('reportNoDamage','Aucun dégât constaté.')) + '</p>';
-  var clauses = (INFO.clauses && INFO.clauses.length)
-    ? '<ol class="rp-clauses">' + INFO.clauses.map(function(cl){ return '<li>' + escapeHtml(cl) + '</li>'; }).join('') + '</ol>'
-    : '';
+  var clauses = clausesHtml();
   var small = ['front','rear','left','right'].map(function(id){
     var def = VIEW_DEFS.find(function(x){ return x.id === id; });
     return '<figure class="rp-view"><img alt="' + escapeHtml(tr(def.label,def.fallback)) + '" src="' + shots[id].url + '"><figcaption>' + escapeHtml(tr(def.label,def.fallback)) + '</figcaption></figure>';
@@ -306,15 +321,23 @@ function viewsHtml(box, items){
   var legend = GRAVITIES.map(function(g){
     return '<span><i class="rp-dot" style="background:' + g.color + '"></i>' + escapeHtml(gravName(g.id)) + '</span>';
   }).join('');
-  return '<table class="rp-box"><tr>' +
+  var top = '<img alt="' + escapeHtml(tr('viewTop','Dessus')) + '" src="' + shots.top.url + '"><div class="rp-box-cap">' + escapeHtml(tr('viewTop','Dessus')) + '</div>';
+  // Encadré 1 (comme l'attestation) : conditions générales à gauche, vue du dessus à droite.
+  // Encadré 2 : dégâts constatés à gauche, 4 autres vues à droite.
+  return (clauses
+      ? '<table class="rp-box rp-cond"><tr>' +
+          '<td class="rp-box-text"><div class="rp-box-title">' + escapeHtml(tr('reportConditionsTitle','Conditions générales')) + '</div>' + clauses + '</td>' +
+          '<td class="rp-box-view">' + top + '</td>' +
+        '</tr></table>'
+      : '') +
+    '<table class="rp-box rp-damages"><tr>' +
       '<td class="rp-box-text">' +
         '<div class="rp-box-title">' + escapeHtml(tr('reportDamagesBoxTitle','Dégâts constatés')) + ' (' + items.length + ')</div>' +
-        list + clauses +
+        list +
       '</td>' +
-      '<td class="rp-box-view"><img alt="' + escapeHtml(tr('viewTop','Dessus')) + '" src="' + shots.top.url + '"><div class="rp-box-cap">' + escapeHtml(tr('viewTop','Dessus')) + '</div></td>' +
-    '</tr></table>' +
-    '<div class="rp-views-row">' + small + '</div>' +
-    '<div class="rp-legend">' + legend + '</div>';
+      '<td class="rp-box-views4"><div class="rp-views-grid">' + (clauses ? '' : '<figure class="rp-view rp-view-top">' + top.replace('<div class="rp-box-cap">', '<figcaption>').replace(/<\/div>$/, '</figcaption>') + '</figure>') + small + '</div>' +
+        '<div class="rp-legend">' + legend + '</div></td>' +
+    '</tr></table>';
 }
 
 function photosHtml(items){
@@ -410,7 +433,7 @@ function print2DReport(){
    ------------------------------------------------------------------ */
 function merge(target, src){
   Object.keys(src || {}).forEach(function(k){
-    if (src[k] && typeof src[k] === 'object' && target[k] && typeof target[k] === 'object') merge(target[k], src[k]);
+    if (src[k] && typeof src[k] === 'object' && !Array.isArray(src[k]) && target[k] && typeof target[k] === 'object' && !Array.isArray(target[k])) merge(target[k], src[k]);
     else if (src[k] !== undefined && src[k] !== null) target[k] = src[k];
   });
 }

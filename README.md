@@ -41,24 +41,32 @@ Mise en page calquée sur l'« Attestation de mise à disposition d'un véhicule
 1. titre centré, phrase d'introduction (« Je, soussigné garage …, responsable après-vente … sis à … ») ;
 2. champs : De Mr et/ou Mme, Le véhicule, Châssis n°, Immatriculé, Kilométrage, Niveau carburant,
    Dossier (OR / véhicule) — une valeur absente laisse une ligne pointillée à compléter ;
-3. phrase d'engagement, puis l'**encadré** : liste numérotée des dégâts constatés (zone, type,
-   gravité, observation, nombre de photos) à gauche, **vue du dessus** du modèle 3D avec les repères
-   à droite ; en dessous les 4 autres vues (avant, arrière, côté gauche, côté droit) et la légende ;
-4. Remarques (lignes pointillées), « Fait à Seraing, en 2 exemplaires le … à … », signatures
+3. phrase d'engagement (« Par signature de la présente, la partie locataire du dit véhicule reconnaît
+   l'exactitude des dégâts relevés ci-dessous, adhère et s'engage à respecter les clauses du présent
+   document »), puis l'**encadré des conditions générales** a) à i) de l'attestation à gauche et la
+   **vue du dessus** du modèle 3D avec les repères à droite ;
+4. encadré **Dégâts constatés** : liste numérotée (zone, type, gravité, observation, nombre de photos)
+   à gauche, les 4 autres vues (avant, arrière, côté gauche, côté droit) et la légende à droite ;
+5. Remarques (lignes pointillées), « Fait à Seraing, en 2 exemplaires le … à … », signatures
    « Pour Iacolino » / « Signature du client » ;
-5. encadré **Retour du véhicule** (date, kilométrage, remarques, signatures garage / client, vue du
-   dessus vierge pour noter les nouveaux dégâts) ;
-6. page(s) suivante(s) : **photos des dégâts**, 3 par ligne, légende n° + type.
+6. encadré **Retour du véhicule** (date, kilométrage, remarques, signatures garage / client, vue du
+   dessus vierge pour noter les nouveaux dégâts), puis les **photos des dégâts**, 3 par ligne.
+
+Conditions générales par défaut (clé `reportClauses` dans `lang_fr.js`, `lang_nl.js`, `lang_en.js`,
+une clause par segment séparé par `|`) : le texte de l'attestation, avec la clause a) adaptée
+(« sans dégât matériel autre que ceux relevés au présent document ») puisque le document liste les
+dégâts. Pour un autre texte depuis WinDev : `setRapportInfos({"clauses":["…","…"]})` (ou une chaîne,
+une clause par ligne) ; `"clauses":false` masque l'encadré.
 
 Textes et coordonnées par défaut : garage Iacolino, Seraing, Rue de la Boverie 448 — tous
 surchargeables par `setRapportInfos` : `company.{name, role, city, address, logo}`, `intro`,
-`commitment`, `clauses` (liste a) b) c)… affichée sous les dégâts, comme sur l'attestation),
-`place`, `copies`, `time`, `returnSection` (`false` pour masquer l'encadré retour), `title`.
+`commitment`, `clauses`, `place`, `copies`, `time`, `returnSection` (`false` pour masquer
+l'encadré retour), `title`.
 
 ### Exemples PDF
 
 - [`exemples/rapport-degats-exemple.pdf`](exemples/rapport-degats-exemple.pdf) : document complet rempli
-  avec des données d'exemple (client, véhicule, 7 dégâts, 5 photos).
+  avec des données d'exemple (client, véhicule, conditions générales, 7 dégâts, 5 photos).
 - [`exemples/rapport-degats-modele-champs.pdf`](exemples/rapport-degats-modele-champs.pdf) : même document
   avec les champs WinDev de l'attestation à la place des valeurs (`@P_CORRESP`, `@MAKE @MODEL`,
   `@VCHASSIS`, `@VPLATE`, `@VMILEAGE`).
