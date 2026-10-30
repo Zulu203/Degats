@@ -16,9 +16,9 @@ s'ajoute d'abord dans `lang_fr.js`.
 | `chargerDommages(json)` | charge les lignes de `Carstock_damage_detail` (colonnes = clés JSON, dont `digital`) |
 | `envoyerSauvegarde()` | envoie `GET_DAMAGES_RESPONSE` (postMessage + presse-papier) |
 | `ajouterPhoto(damageId, path)` | WinDev confirme une photo uploadée (chemin `numberjob/vehicule/damage_id_N.jpg`) |
-| `setRapportInfos(json)` | en-tête du rapport imprimable (société, client, véhicule, intervention) |
+| `setRapportInfos(json)` | données du contrat imprimable (garage, client, véhicule, départ / retour, montants des conditions) |
 | `chargerPhotos(json)` | photos des dégâts pour le rapport : `[{damage_id, path, src}]` (`src` = base64 ou URL) |
-| `open2DReport()` / `print2DReport()` / `close2DReport()` | ouvrir / imprimer / fermer le rapport |
+| `open2DReport()` / `print2DReport()` / `close2DReport()` | ouvrir / imprimer / fermer le contrat |
 | `get2DReportPayload()` | données du rapport (JSON) |
 
 ## Messages envoyés à WinDev (postMessage, champ `action`)
@@ -33,62 +33,113 @@ s'ajoute d'abord dans `lang_fr.js`.
 
 La colonne `digital` contient les chemins des photos d'un dégât, séparés par des virgules.
 
-## Rapport imprimable (`report2d.js`, `report2d.css`)
+## Contrat de véhicule de remplacement imprimable (`report2d.js`, `report2d.css`)
 
-Mise en page calquée sur l'« Attestation de mise à disposition d'un véhicule » du garage
-(A4 portrait, noir et blanc, encadrés simples), générée depuis les dégâts enregistrés :
+Le bouton « Rapport » produit un contrat de mise à disposition d'un véhicule de remplacement,
+A4 portrait, noir et blanc. Il fusionne les deux contrats d'exemple : l'attestation Iacolino
+(Seraing) et le contrat de Peerlings (Pelt, `exemples/vehicle_replacement_contract.doc`).
+Il existe en français, néerlandais (reprenant le texte Peerlings) et anglais (`?lang=`).
 
-1. titre centré, phrase d'introduction (« Je, soussigné garage …, responsable après-vente … sis à … ») ;
-2. champs : De Mr et/ou Mme, Le véhicule, Châssis n°, Immatriculé, Kilométrage, Niveau carburant,
-   Dossier (OR / véhicule) — une valeur absente laisse une ligne pointillée à compléter ;
-3. phrase d'engagement (« Par signature de la présente, la partie locataire du dit véhicule reconnaît
-   l'exactitude des dégâts relevés ci-dessous, adhère et s'engage à respecter les clauses du présent
-   document »), puis l'**encadré des conditions générales** a) à i) de l'attestation à gauche et la
-   **vue du dessus** du modèle 3D avec les repères à droite ;
-4. encadré **Dégâts constatés** : liste numérotée (zone, type, gravité, observation, nombre de photos)
-   à gauche, les 4 autres vues (avant, arrière, côté gauche, côté droit) et la légende à droite ;
-5. Remarques (lignes pointillées), « Fait à Seraing, en 2 exemplaires le … à … », signatures
-   « Pour Iacolino » / « Signature du client » ;
-6. encadré **Retour du véhicule** (date, kilométrage, remarques, signatures garage / client, vue du
-   dessus vierge pour noter les nouveaux dégâts), puis les **photos des dégâts**, 3 par ligne.
+**Page 1 — le contrat**
+1. en-tête du garage (nom, adresse, téléphone, e-mail, logo possible), dossier (OR) et n° véhicule ;
+2. titre « Mise à disposition d'un véhicule de remplacement » / « Uitlening van een vervangwagen » ;
+3. encadrés **Client** (conducteur, adresse, tél. / GSM, permis) et **Véhicule de remplacement**
+   (marque / modèle / version, châssis, carburant, immatriculation) ;
+4. **État du véhicule au départ** (vue du dessus 3D avec les repères + liste des dégâts) et
+   **État du véhicule au retour** (vue vierge + lignes pointillées), avec la phrase « Le véhicule
+   est présumé en bon état, sauf les remarques suivantes » ;
+5. **Conditions générales** communes (11 clauses, voir plus bas) ;
+6. tableau **Départ / Retour** (date, heure, kilométrage, niveau carburant), retour prévu ;
+7. déclaration du client et signatures, « Fait à …, en 2 exemplaires, le … ».
 
-Conditions générales par défaut (clé `reportClauses` dans `lang_fr.js`, `lang_nl.js`, `lang_en.js`,
-une clause par segment séparé par `|`) : le texte de l'attestation, avec la clause a) adaptée
-(« sans dégât matériel autre que ceux relevés au présent document ») puisque le document liste les
-dégâts. Pour un autre texte depuis WinDev : `setRapportInfos({"clauses":["…","…"]})` (ou une chaîne,
-une clause par ligne) ; `"clauses":false` masque l'encadré.
+**Page 2 — l'annexe** : les 5 vues 3D avec les repères, le relevé détaillé des dégâts (zone,
+types, gravité, observation, nombre de photos) et les photos des dégâts.
 
-Textes et coordonnées par défaut : garage Iacolino, Seraing, Rue de la Boverie 448 — tous
-surchargeables par `setRapportInfos` : `company.{name, role, city, address, logo}`, `intro`,
-`commitment`, `clauses`, `place`, `copies`, `time`, `returnSection` (`false` pour masquer
-l'encadré retour), `title`.
+Une valeur absente laisse une ligne pointillée à compléter à la main.
+
+### Conditions générales communes (Belgique / Benelux)
+
+Les deux contrats d'exemple ont été fusionnés en un seul texte commun (clé `reportClauses`
+dans `lang_fr.js`, `lang_nl.js`, `lang_en.js`, une clause par segment séparé par `|`) :
+examen et état au départ, restitution propre (forfait de nettoyage), responsabilité jusqu'à la
+restitution, accident (constat européen) et franchise, infractions, carburant, interdiction de
+fumer / boire / manger, limite de kilométrage, prix journalier, remise et reprise avec le garage,
+tribunaux compétents.
+
+Les montants changent d'un garage à l'autre ; ils se passent dans `terms` :
+
+| Clé `terms` | Repère dans le texte | Exemple Iacolino / Peerlings |
+|---|---|---|
+| `cleaningFee` | `%clean` — forfait de nettoyage (€ TVAC) | 40 / 50 + 50 |
+| `deductible` | `%deductible` — franchise accident (€) | — / 750 |
+| `fuelPrice` | `%fuel` — carburant manquant (€ / litre) | 3 / plein obligatoire |
+| `kmPerDay` | `%km` — limite (km / jour) | 150 / — |
+| `dailyRate` | `%rate` — prix normal (€ TVAC / jour) | — / 30 |
+| `customerRate` | `%custrate` — prix payé par le client (€ / jour) | — / à compléter |
+
+Valeur absente : « …… » à compléter à la main. Valeur `false` : la clause est retirée (par ex.
+`"kmPerDay": false` pour un garage sans limite). `setRapportInfos({"clauses":[…]})` remplace tout
+le texte, `"clauses": false` masque l'encadré.
+
+Deux adaptations par rapport aux originaux : « en bon père de famille » devient « en personne
+prudente et raisonnable » (terme du Code civil belge depuis 2020), et la clause des tribunaux
+ajoute « sans préjudice des règles impératives de protection du consommateur », car une clause
+d'attribution de compétence ne peut pas écarter ces règles face à un particulier.
+
+### Correspondance avec les champs iReach (`@`)
+
+| Champ du contrat | Champ iReach | Clé `setRapportInfos` |
+|---|---|---|
+| Conducteur | `@P_CORRESP` | `customer.name` |
+| Adresse | `@P_ADDR @P_ADNO @P_ADBO @P_ZIP @P_CITY` | `customer.address` |
+| Tél. / GSM | `@P_TEL` / `@P_GSM` | `customer.phone` / `customer.mobile` |
+| Permis de conduire | `@P_DRIVERLICENSE` | `customer.licence` |
+| Marque / modèle | `@MAKE @MODEL` (Iacolino) ou `@VMODEL @VVERSION` (Peerlings) | `vehicle.make`, `vehicle.model`, `vehicle.version` |
+| Châssis | `@VCHASSIS` | `vehicle.vin` |
+| Carburant (type) | `@VFUEL` | `vehicle.fuelType` |
+| Immatriculation | `@VPLATE` | `vehicle.plate` |
+| Kilométrage au départ | `@VMILEAGE` | `vehicle.km` |
+| Date / heure de départ | `@PFRDAT` / `@PFRTIM` | `loan.fromDate` / `loan.fromTime` |
+| Retour prévu | `@PTODAT` / `@PTOTIM` | `loan.toDate` / `loan.toTime` |
+| Date du document | `@DAT` | `job.date` |
+| Niveau carburant au départ | — | `vehicle.fuel` |
+| Dossier / n° véhicule | `gnNumberJob` / `gnNumberCarstock` | `job.number` / `job.carstock` |
+| Garage | — | `company.{name, address, zip, city, phone, email, vat, logo}` |
 
 ### Exemples PDF
 
-- [`exemples/rapport-degats-exemple.pdf`](exemples/rapport-degats-exemple.pdf) : document complet rempli
-  avec des données d'exemple (client, véhicule, conditions générales, 7 dégâts, 5 photos).
-- [`exemples/rapport-degats-modele-champs.pdf`](exemples/rapport-degats-modele-champs.pdf) : même document
-  avec les champs WinDev de l'attestation à la place des valeurs (`@P_CORRESP`, `@MAKE @MODEL`,
-  `@VCHASSIS`, `@VPLATE`, `@VMILEAGE`).
+| Fichier | Contenu |
+|---|---|
+| [`exemples/rapport-degats-exemple.pdf`](exemples/rapport-degats-exemple.pdf) | contrat FR rempli avec des données d'exemple |
+| [`exemples/rapport-degats-modele-champs.pdf`](exemples/rapport-degats-modele-champs.pdf) | contrat FR avec les champs `@` à la place des valeurs |
+| [`exemples/rapport-degats-exemple-nl.pdf`](exemples/rapport-degats-exemple-nl.pdf) | idem en néerlandais, rempli |
+| [`exemples/rapport-degats-modele-champs-nl.pdf`](exemples/rapport-degats-modele-champs-nl.pdf) | idem en néerlandais, avec les champs `@` |
+| [`exemples/vehicle_replacement_contract.doc`](exemples/vehicle_replacement_contract.doc) | contrat Peerlings d'origine (référence) |
 
-Les photos de ces exemples sont des images générées pour le test ; en production ce sont les
+Les photos des exemples sont des images générées pour le test ; en production ce sont les
 photos transmises par `chargerPhotos`.
 
 ### Exemple d'appel WinDev
 
 ```windev
-// 1. En-tête (à appeler après HTML_READY, avant d'ouvrir le rapport)
-// Mêmes champs que l'attestation : @P_CORRESP, @MAKE @MODEL, @VCHASSIS, @VPLATE, @VMILEAGE
+// 1. Données du contrat (à appeler après HTML_READY, avant d'ouvrir le rapport)
 sInfos is string = [
-{"company":{"name":"Iacolino","role":"responsable après-vente des établissements Iacolino","city":"Seraing","address":"Rue de la Boverie 448"},
- "customer":{"name":"%1"},
- "vehicle":{"make":"%2","model":"%3","vin":"%4","plate":"%5","km":"%6","fuel":"%7"},
- "job":{"number":%8,"carstock":%9,"date":"%10"},
- "observations":"%11"}
+{"company":{"name":"%1","address":"%2","zip":"%3","city":"%4","phone":"%5","email":"%6"},
+ "customer":{"name":"%7","address":"%8","phone":"%9","mobile":"%10","licence":"%11"},
+ "vehicle":{"make":"%12","model":"%13","version":"%14","vin":"%15","plate":"%16","fuelType":"%17","km":"%18","fuel":"%19"},
+ "loan":{"fromDate":"%20","fromTime":"%21","toDate":"%22","toTime":"%23"},
+ "job":{"number":%24,"carstock":%25,"date":"%26"},
+ "terms":{"cleaningFee":40,"deductible":750,"fuelPrice":3,"kmPerDay":150,"dailyRate":30,"customerRate":0},
+ "observations":"%27"}
 ]
-sInfos = StringBuild(sInfos, JSStr(P_CORRESP), JSStr(MAKE), JSStr(MODEL), JSStr(VCHASSIS), JSStr(VPLATE), ...
-   JSStr(VMILEAGE), JSStr(sNiveauCarburant), JSInt(gnNumberJob), JSInt(gnNumberCarstock), ...
-   DateToString(Today(), "YYYY-MM-DD"), JSStr(sRemarques))
+sInfos = StringBuild(sInfos, JSStr(gsGarageNom), JSStr(gsGarageAdresse), JSStr(gsGarageCP), JSStr(gsGarageVille), ...
+   JSStr(gsGarageTel), JSStr(gsGarageEmail), ...
+   JSStr(P_CORRESP), JSStr(P_ADDR + " " + P_ADNO + " " + P_ADBO + ", " + P_ZIP + " " + P_CITY), ...
+   JSStr(P_TEL), JSStr(P_GSM), JSStr(P_DRIVERLICENSE), ...
+   JSStr(MAKE), JSStr(VMODEL), JSStr(VVERSION), JSStr(VCHASSIS), JSStr(VPLATE), JSStr(VFUEL), ...
+   JSStr(VMILEAGE), JSStr(sNiveauCarburant), ...
+   DateToString(PFRDAT, "YYYY-MM-DD"), JSStr(PFRTIM), DateToString(PTODAT, "YYYY-MM-DD"), JSStr(PTOTIM), ...
+   JSInt(gnNumberJob), JSInt(gnNumberCarstock), DateToString(Today(), "YYYY-MM-DD"), JSStr(sRemarques))
 HTM_Container.ExecuteJS("setRapportInfos(" + sInfos + ")")
 
 // 2. Photos (lues sur le serveur d'images, encodées en base64)

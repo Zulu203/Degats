@@ -1,11 +1,11 @@
 /* =====================================================================
-   Rapport des dégâts — mise en page calquée sur l'attestation de mise à
-   disposition du garage (A4 portrait, noir et blanc, encadrés simples)
+   Contrat de mise à disposition d'un véhicule de remplacement
+   (A4 portrait, noir et blanc, encadrés simples — modèles Iacolino / Peerlings)
    ===================================================================== */
 #report2DOverlay{
   position:fixed; inset:0; z-index:1000; display:none;
   background:#e9ecf1; color:#000; overflow:auto;
-  font-family:Tahoma,Verdana,"Segoe UI",Arial,sans-serif;
+  font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;
 }
 #report2DOverlay.open{display:block;}
 .report2d-shell{max-width:230mm; margin:0 auto; padding:18px 16px 40px;}
@@ -21,100 +21,111 @@
 .report2d-toolbar button.primary{background:#2f6fb0; color:#fff; border-color:#2f6fb0;}
 .report2d-paper{
   background:#fff; box-shadow:0 14px 40px rgba(27,36,48,.14);
-  padding:14mm 16mm 16mm; min-height:297mm; font-size:11pt; line-height:1.35; color:#000;
+  padding:12mm 13mm 14mm; min-height:297mm; font-size:10pt; line-height:1.25; color:#000;
 }
-.rp-page p{margin:0;}
+.report2d-paper p{margin:0;}
+.report2d-paper table{border-collapse:collapse; width:100%;}
 
-/* ---------- titre, introduction, champs ---------- */
-.rp-logo{max-height:40px; max-width:150px; object-fit:contain; margin-bottom:8px;}
-.rp-title{font-size:14.5pt; font-weight:700; font-style:italic; text-decoration:underline; text-align:center; margin:0 0 10px;}
-.rp-title-sm{font-size:12.5pt; margin:0 0 10px;}
-.rp-intro{text-align:justify; margin:0 0 8px!important;}
-.rp-fields{border-collapse:collapse; margin:2px 0 10px 44px; font-size:11pt;}
-.rp-fields td{padding:1px 0; vertical-align:top;}
-.rp-fields td.rp-fl{width:215px; padding-right:12px; white-space:nowrap;}
-.rp-fields td.rp-fv{font-weight:600; min-width:200px;}
-.rp-blank{display:inline-block; min-width:200px; border-bottom:1px dotted #777; height:1em; vertical-align:bottom;}
+/* ---------- en-tête garage + titre ---------- */
+.rp-head td{border:1px solid #000; vertical-align:top; padding:5px 8px;}
+.rp-head-co{width:68%;}
+.rp-logo{max-height:34px; max-width:140px; object-fit:contain; margin-bottom:3px; display:block;}
+.rp-co-name{font-size:13pt; font-weight:700;}
+.rp-co-lines{font-size:8.5pt; line-height:1.3;}
+.rp-head-ref{font-size:9pt;}
+.rp-head-ref div{display:flex; justify-content:space-between; gap:8px; padding:2px 0;}
+.rp-head-ref b{font-size:10pt;}
+.rp-titlebar{text-align:center; font-weight:700; font-size:13pt; padding:4px 8px!important; letter-spacing:.01em;}
 
-/* ---------- encadré principal : liste à gauche / vue du dessus à droite ---------- */
-.rp-box{width:100%; border-collapse:collapse; margin:2px 0 6px; page-break-inside:avoid; break-inside:avoid;}
-.rp-box td{border:1px solid #000; vertical-align:top;}
-.rp-box-text{padding:6px 8px 6px 8px; width:68%;}
-.rp-box-view{width:32%; padding:4px; text-align:center;}
-.rp-box-view img{display:block; width:100%; aspect-ratio:16/9; object-fit:contain; background:#fff;}
-.rp-box-cap{font-size:8pt; color:#555; margin-top:2px;}
-.rp-box-title{font-weight:700; font-style:italic; text-decoration:underline; margin:0 0 4px;}
-.rp-center{text-align:center; font-size:12.5pt;}
-.rp-dlist{list-style:none; margin:0; padding:0; font-size:10pt;}
-.rp-dlist li{display:flex; gap:6px; align-items:flex-start; padding:2px 0; font-style:italic;}
-.rp-dlist li .rp-dl{flex:1;}
-.rp-dl-photos{font-style:normal; color:#555; font-size:9pt; white-space:nowrap;}
-.rp-clauses{list-style:none; margin:0; padding:0; font-size:9pt; font-weight:700; font-style:italic; line-height:1.28;}
-.rp-clauses li{display:grid; grid-template-columns:22px 1fr; padding:0.5px 0;}
-.rp-cond .rp-box-text{width:70%;}
-.rp-cond .rp-box-view{width:30%; vertical-align:middle;}
-.rp-damages .rp-box-text{width:56%;}
-.rp-box-views4{width:44%; padding:4px;}
-.rp-views-grid{display:grid; grid-template-columns:1fr 1fr; gap:4px;}
-.rp-views-grid .rp-view-top{grid-column:span 2;}
-.rp-num{display:inline-block; min-width:18px; height:18px; line-height:18px; border-radius:50%; color:#fff; font-weight:700; font-size:9pt; text-align:center; padding:0 3px; font-style:normal; flex:none; margin-top:1px;}
-.rp-empty{color:#555; font-style:italic;}
+/* ---------- client / véhicule ---------- */
+.rp-parties{margin-top:4px;}
+.rp-parties > tbody > tr > td{border:1px solid #000; vertical-align:top; padding:4px 8px 5px; width:50%;}
+.rp-box-h{font-weight:700; font-size:9.5pt; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;}
+.rp-kv th{text-align:left; font-weight:400; width:38%; padding:1px 6px 1px 0; vertical-align:top; white-space:nowrap;}
+.rp-kv td{font-weight:700; padding:1px 0; vertical-align:top;}
+.rp-blank{display:inline-block; width:100%; min-width:60px; border-bottom:1px dotted #777; height:1em; vertical-align:bottom;}
+.rp-blank.sm{width:70px;}
 
-/* ---------- 4 autres vues ---------- */
-.rp-views-row{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin-top:4px; page-break-inside:avoid; break-inside:avoid;}
-.rp-view{margin:0; border:1px solid #000;}
+/* ---------- état au départ / au retour ---------- */
+.rp-state{margin-top:4px;}
+.rp-state > tbody > tr > td{border:1px solid #000; vertical-align:top; padding:4px 8px 6px; width:50%;}
+.rp-state-h{text-align:center; font-weight:700; text-transform:uppercase; font-size:9.5pt; letter-spacing:.03em;}
+.rp-state-img{display:block; width:100%; height:29mm; object-fit:contain; margin:2px 0 3px; background:#fff;}
+.rp-presumed{font-size:8.5pt; margin-bottom:2px!important;}
+.rp-slist{list-style:none; margin:0; padding:0; font-size:8.5pt;}
+.rp-slist li{display:flex; gap:5px; align-items:center; padding:0.5px 0; break-inside:avoid;}
+.rp-num{display:inline-block; min-width:16px; height:16px; line-height:16px; border-radius:50%; color:#fff; font-weight:700; font-size:8pt; text-align:center; padding:0 3px; flex:none;}
+.rp-annex-note{font-size:7.5pt; color:#555; font-style:italic; margin-top:2px;}
+.rp-obs{font-size:8.5pt; font-style:italic; margin-top:3px!important;}
+.rp-empty{font-size:8.5pt; font-style:italic;}
+.rp-dotline{border-bottom:1px dotted #555; height:13px;}
+
+/* ---------- conditions générales ---------- */
+.rp-cond{border:1px solid #000; margin-top:4px; padding:4px 8px 5px; page-break-inside:avoid; break-inside:avoid;}
+.rp-clauses{margin:0; padding-left:18px; font-size:7.8pt; line-height:1.2;}
+.rp-clauses li{padding:0.5px 0;}
+.rp-fillin{letter-spacing:1px; color:#444;}
+
+/* ---------- départ / retour ---------- */
+.rp-loan{margin-top:4px; font-size:8.5pt;}
+.rp-loan td,.rp-loan th{border:1px solid #000; padding:2px 5px; text-align:center; height:16px;}
+.rp-loan th{font-weight:400;}
+.rp-loan .rp-loan-h{font-weight:700; text-transform:uppercase; letter-spacing:.03em; background:#f2f2f2; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+.rp-loan td .rp-blank{min-width:40px;}
+.rp-planned{margin:4px 0 0!important; font-size:9.5pt;}
+
+/* ---------- signatures ---------- */
+.rp-sign{margin-top:4px; page-break-inside:avoid; break-inside:avoid;}
+.rp-sign td{width:50%; vertical-align:top; padding:0 12px 0 0; font-size:9.5pt;}
+.rp-sign-who{margin-top:4px!important; font-weight:700; padding-bottom:17mm;}
+
+/* ---------- annexe (page 2) ---------- */
+.rp-annex{page-break-before:always; break-before:page; margin-top:18px;}
+.rp-annex-title{font-size:13pt; font-weight:700; text-align:center; margin:0 0 2px; padding:4px; border:1px solid #000;}
+.rp-annex-ref{text-align:center; font-size:9pt; margin:3px 0 6px;}
+.rp-views{display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:5px;}
+.rp-view{margin:0; border:1px solid #000; break-inside:avoid;}
+.rp-view-front,.rp-view-top,.rp-view-rear{grid-column:span 2;}
+.rp-view-left,.rp-view-right{grid-column:span 3;}
 .rp-view img{display:block; width:100%; aspect-ratio:16/9; object-fit:contain; background:#fff;}
 .rp-view figcaption{font-size:8pt; text-align:center; border-top:1px solid #000; padding:1px 4px;}
-.rp-legend{display:flex; gap:12px; justify-content:flex-end; font-size:8pt; color:#555; margin:3px 0 0;}
+.rp-legend{display:flex; gap:12px; justify-content:flex-end; font-size:8pt; color:#555; margin:3px 0 6px;}
 .rp-dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:0;}
-
-/* ---------- remarques, fait à, signatures ---------- */
-.rp-remarks{text-decoration:none; font-style:italic; margin:6px 0 2px!important;}
-.rp-remarks-text{font-size:10.5pt; padding:2px 0;}
-.rp-dotline{border-bottom:1px dotted #555; height:16px;}
-.rp-made{margin:10px 0 8px!important;}
-.rp-sign-row{display:flex; justify-content:space-between; padding:0 40px 0 0;}
-.rp-sign-main{margin-top:4px;}
-.rp-sign-space{height:34px;}
-.rp-return .rp-box-text{padding:4px 10px 6px;}
-.rp-return-line{margin:3px 0!important;}
-.rp-dots{letter-spacing:1px; color:#555;}
-.rp-sign-label{margin-top:4px!important;}
-.rp-return .rp-sign-row{padding:4px 60px 0 56px;}
-.rp-return .rp-sign-space{height:18px;}
-.rp-return{margin-top:6px;}
-
-/* ---------- photos (page suivante) ---------- */
-.rp-photos-section{margin-top:16px;}
-.rp-photos-section .rp-title{page-break-after:avoid; break-after:avoid;}
-.rp-photos{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px;}
+.rp-table{font-size:8.5pt;}
+.rp-table th,.rp-table td{border:1px solid #000; padding:2px 5px; text-align:left; vertical-align:top;}
+.rp-table th{background:#f2f2f2; font-weight:700; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+.rp-table td.c{text-align:center; white-space:nowrap;}
+.rp-table td.nw{white-space:nowrap;}
+.rp-photos-title{font-size:11pt; font-weight:700; margin:10px 0 5px; break-after:avoid; page-break-after:avoid;}
+.rp-photos{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px;}
 .rp-photo{margin:0; border:1px solid #000; page-break-inside:avoid; break-inside:avoid; background:#fff;}
 .rp-photo img{display:block; width:100%; aspect-ratio:4/3; object-fit:cover; background:#f3f3f3;}
 .rp-photo-missing{aspect-ratio:4/3; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; color:#555; font-size:8.5pt; background:#f3f3f3; text-align:center; padding:8px;}
 .rp-photo-missing small{font-family:ui-monospace,Consolas,monospace; font-size:7pt; word-break:break-all;}
-.rp-photo figcaption{padding:3px 6px; font-size:8.5pt; border-top:1px solid #000; display:flex; gap:6px; align-items:center;}
+.rp-photo figcaption{padding:2px 6px; font-size:8pt; border-top:1px solid #000; display:flex; gap:6px; align-items:center;}
 .rp-photo-idx{margin-left:auto; color:#555;}
 
 /* Écran étroit uniquement (jamais à l'impression : la largeur d'une page A4 est < 760px) */
 @media screen and (max-width:760px){
   .report2d-shell{padding:8px;}
-  .report2d-paper{padding:14px; min-height:0;}
+  .report2d-paper{padding:12px; min-height:0;}
   .report2d-toolbar-hint{display:none;}
-  .rp-fields{margin-left:0;}
-  .rp-fields td.rp-fl{width:130px;}
-  .rp-box,.rp-box tr,.rp-box td{display:block; width:100%;}
-  .rp-box td.rp-box-view{border-top:0;}
-  .rp-views-row{grid-template-columns:1fr 1fr;}
+  .rp-parties > tbody > tr > td,.rp-state > tbody > tr > td,.rp-sign td,.rp-head td{display:block; width:100%;}
+  .rp-loan{font-size:7.5pt;}
+  .rp-views{grid-template-columns:1fr 1fr;}
+  .rp-view-front,.rp-view-top,.rp-view-rear,.rp-view-left,.rp-view-right{grid-column:span 1;}
+  .rp-view-top{grid-column:span 2;}
   .rp-photos{grid-template-columns:1fr 1fr;}
 }
 
 @media print{
-  @page{size:A4 portrait; margin:12mm 14mm;}
+  @page{size:A4 portrait; margin:10mm 12mm;}
   html,body{height:auto!important; overflow:visible!important; background:#fff!important;}
   #app,#popup,#hint,#loader{display:none!important;}
   #report2DOverlay{display:block!important; position:static!important; overflow:visible!important; background:#fff!important;}
   .report2d-shell{max-width:none!important; margin:0!important; padding:0!important;}
   .report2d-toolbar{display:none!important;}
   .report2d-paper{box-shadow:none!important; padding:0!important; min-height:0!important;}
-  .rp-num,.rp-dot,.rp-view img,.rp-box-view img,.rp-photo img{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  .rp-num,.rp-dot,.rp-view img,.rp-state-img,.rp-photo img{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  .rp-annex{margin-top:0!important;}
 }
