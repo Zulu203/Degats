@@ -55,6 +55,17 @@ surchargeables par `setRapportInfos` : `company.{name, role, city, address, logo
 `commitment`, `clauses` (liste a) b) c)… affichée sous les dégâts, comme sur l'attestation),
 `place`, `copies`, `time`, `returnSection` (`false` pour masquer l'encadré retour), `title`.
 
+### Exemples PDF
+
+- [`exemples/rapport-degats-exemple.pdf`](exemples/rapport-degats-exemple.pdf) : document complet rempli
+  avec des données d'exemple (client, véhicule, 7 dégâts, 5 photos).
+- [`exemples/rapport-degats-modele-champs.pdf`](exemples/rapport-degats-modele-champs.pdf) : même document
+  avec les champs WinDev de l'attestation à la place des valeurs (`@P_CORRESP`, `@MAKE @MODEL`,
+  `@VCHASSIS`, `@VPLATE`, `@VMILEAGE`).
+
+Les photos de ces exemples sont des images générées pour le test ; en production ce sont les
+photos transmises par `chargerPhotos`.
+
 ### Exemple d'appel WinDev
 
 ```windev

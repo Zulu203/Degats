@@ -267,7 +267,7 @@ function headerHtml(){
       fieldRow(tr('reportFieldVehicle','Le véhicule'), [v.make, v.model].filter(Boolean).join(' ') || currentVehicleLabel()) +
       fieldRow(tr('reportFieldVin','Châssis n°'), v.vin) +
       fieldRow(tr('reportFieldPlate','Immatriculé'), v.plate) +
-      fieldRow(tr('reportFieldKm','Kilométrage'), v.km ? (String(v.km).replace(/\s*km$/i,'') + ' km') : '') +
+      fieldRow(tr('reportFieldKm','Kilométrage'), v.km ? (/^[\d\s.,]+$/.test(String(v.km).replace(/\s*km$/i,'')) ? String(v.km).replace(/\s*km$/i,'') + ' km' : String(v.km)) : '') +
       fieldRow(tr('reportFieldFuel','Niveau carburant'), v.fuel) +
       fieldRow(tr('reportFieldFile','Dossier (OR / véhicule n°)'), [jobNo, carstock].filter(Boolean).join(' / ')) +
     '</table>' +
