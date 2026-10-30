@@ -35,35 +35,41 @@ La colonne `digital` contient les chemins des photos d'un dégât, séparés par
 
 ## Rapport imprimable (`report2d.js`, `report2d.css`)
 
-Mise en page « état des lieux » au format A4 portrait, construite comme un contrat de véhicule de
-remplacement :
+Mise en page calquée sur l'« Attestation de mise à disposition d'un véhicule » du garage
+(A4 portrait, noir et blanc, encadrés simples), générée depuis les dégâts enregistrés :
 
-1. en-tête société (logo, coordonnées) + titre, référence OR / véhicule, date ;
-2. blocs **Véhicule** (marque/modèle, immatriculation, VIN, couleur, km, carburant), **Client** (nom,
-   adresse, téléphone, e-mail, permis) et **Intervention** (OR, dates entrée/sortie, réceptionné par, type) ;
-   une valeur absente laisse une ligne vide à compléter à la main ;
-3. **État du véhicule** : 5 vues (avant, dessus, arrière, côté gauche, côté droit) rendues depuis le
-   modèle 3D avec les repères numérotés, colorés selon la gravité ;
-4. **Relevé des dégâts** : n°, zone, type(s), gravité, observation, nombre de photos ;
-5. **Observations**, signatures (garage / client « lu et approuvé »), mention légale ;
-6. page(s) suivante(s) : **photos des dégâts** (3 par ligne, légende n° + type).
+1. titre centré, phrase d'introduction (« Je, soussigné garage …, responsable après-vente … sis à … ») ;
+2. champs : De Mr et/ou Mme, Le véhicule, Châssis n°, Immatriculé, Kilométrage, Niveau carburant,
+   Dossier (OR / véhicule) — une valeur absente laisse une ligne pointillée à compléter ;
+3. phrase d'engagement, puis l'**encadré** : liste numérotée des dégâts constatés (zone, type,
+   gravité, observation, nombre de photos) à gauche, **vue du dessus** du modèle 3D avec les repères
+   à droite ; en dessous les 4 autres vues (avant, arrière, côté gauche, côté droit) et la légende ;
+4. Remarques (lignes pointillées), « Fait à Seraing, en 2 exemplaires le … à … », signatures
+   « Pour Iacolino » / « Signature du client » ;
+5. encadré **Retour du véhicule** (date, kilométrage, remarques, signatures garage / client, vue du
+   dessus vierge pour noter les nouveaux dégâts) ;
+6. page(s) suivante(s) : **photos des dégâts**, 3 par ligne, légende n° + type.
+
+Textes et coordonnées par défaut : garage Iacolino, Seraing, Rue de la Boverie 448 — tous
+surchargeables par `setRapportInfos` : `company.{name, role, city, address, logo}`, `intro`,
+`commitment`, `clauses` (liste a) b) c)… affichée sous les dégâts, comme sur l'attestation),
+`place`, `copies`, `time`, `returnSection` (`false` pour masquer l'encadré retour), `title`.
 
 ### Exemple d'appel WinDev
 
 ```windev
 // 1. En-tête (à appeler après HTML_READY, avant d'ouvrir le rapport)
+// Mêmes champs que l'attestation : @P_CORRESP, @MAKE @MODEL, @VCHASSIS, @VPLATE, @VMILEAGE
 sInfos is string = [
-{"company":{"name":"%1","address":"%2","phone":"%3","email":"%4","vat":"%5"},
- "customer":{"name":"%6","address":"%7","phone":"%8","email":"%9"},
- "vehicle":{"make":"%10","model":"%11","plate":"%12","vin":"%13","color":"%14","km":"%15","fuel":"%16"},
- "job":{"number":%17,"carstock":%18,"date":"%19","dateIn":"%20","agent":"%21","type":"%22"},
- "observations":"%23"}
+{"company":{"name":"Iacolino","role":"responsable après-vente des établissements Iacolino","city":"Seraing","address":"Rue de la Boverie 448"},
+ "customer":{"name":"%1"},
+ "vehicle":{"make":"%2","model":"%3","vin":"%4","plate":"%5","km":"%6","fuel":"%7"},
+ "job":{"number":%8,"carstock":%9,"date":"%10"},
+ "observations":"%11"}
 ]
-sInfos = StringBuild(sInfos, JSStr(gsSociete), JSStr(gsAdresse), JSStr(gsTel), JSStr(gsEmail), JSStr(gsTVA), ...
-   JSStr(Customer.name), JSStr(Customer.address), JSStr(Customer.phone), JSStr(Customer.email), ...
-   JSStr(Carstock.make), JSStr(Carstock.model), JSStr(Carstock.plate), JSStr(Carstock.vin), JSStr(Carstock.color), ...
-   JSStr(Carstock.km), JSStr(Carstock.fuel), JSInt(gnNumberJob), JSInt(gnNumberCarstock), ...
-   DateToString(Today(), "YYYY-MM-DD"), DateToString(Job.datein, "YYYY-MM-DD"), JSStr(myUser.m_sName), JSStr(Job.type), JSStr(Job.memo))
+sInfos = StringBuild(sInfos, JSStr(P_CORRESP), JSStr(MAKE), JSStr(MODEL), JSStr(VCHASSIS), JSStr(VPLATE), ...
+   JSStr(VMILEAGE), JSStr(sNiveauCarburant), JSInt(gnNumberJob), JSInt(gnNumberCarstock), ...
+   DateToString(Today(), "YYYY-MM-DD"), JSStr(sRemarques))
 HTM_Container.ExecuteJS("setRapportInfos(" + sInfos + ")")
 
 // 2. Photos (lues sur le serveur d'images, encodées en base64)

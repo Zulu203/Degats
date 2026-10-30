@@ -27,13 +27,20 @@ var VIEW_DEFS = [
 /* Infos d'en-tête fournies par WinDev (toutes optionnelles : une ligne vide
    à compléter à la main est imprimée quand une valeur manque). */
 var INFO = {
-  company:{name:'', address:'', phone:'', email:'', vat:'', logo:''},
+  company:{name:'Iacolino', role:'responsable après-vente des établissements Iacolino', city:'Seraing', address:'Rue de la Boverie 448', phone:'', email:'', vat:'', logo:''},
   customer:{name:'', address:'', phone:'', email:'', licence:''},
   vehicle:{make:'', model:'', plate:'', vin:'', color:'', km:'', fuel:''},
   job:{number:'', carstock:'', date:'', agent:'', type:'', dateIn:'', dateOut:'', place:''},
   observations:'',
   title:'',
-  reference:''
+  reference:'',
+  intro:'',          // phrase d'introduction (%name %role %city %address)
+  commitment:'',     // phrase avant l'encadré des dégâts
+  clauses:[],        // clauses a) b) c)… affichées sous la liste des dégâts (optionnel)
+  place:'',          // « Fait à … » (défaut : company.city)
+  copies:2,
+  time:'',
+  returnSection:true // encadré « Retour du véhicule »
 };
 var PHOTOS = {}; // damageId → [{path, src}]
 
@@ -186,11 +193,22 @@ function captureView(def, box, items){
 }
 
 /* ------------------------------------------------------------------
-   Gabarit du document
+   Gabarit du document — calqué sur l'« Attestation de mise à disposition
+   d'un véhicule » du garage : titre centré, phrase d'introduction, liste
+   de champs, encadré (texte à gauche / vue du dessus à droite), remarques,
+   « Fait à …, en 2 exemplaires le … », signatures, encadré « Retour du
+   véhicule », puis les photos en page suivante.
    ------------------------------------------------------------------ */
-function field(label, value, cls){
-  return '<div class="rp-field' + (cls ? ' ' + cls : '') + '"><span class="rp-field-label">' + escapeHtml(label) + '</span>' +
-    '<span class="rp-field-value' + (value ? '' : ' blank') + '">' + (value ? escapeHtml(value) : '&nbsp;') + '</span></div>';
+function fill(tpl, map){
+  return String(tpl).replace(/%(\w+)/g, function(m, k){ return map[k] != null ? escapeHtml(map[k]) : m; });
+}
+function dottedLines(n){
+  var out = '';
+  for (var i = 0; i < n; i++) out += '<div class="rp-dotline"></div>';
+  return out;
+}
+function fieldRow(label, value){
+  return '<tr><td class="rp-fl">' + escapeHtml(label) + '</td><td class="rp-fv">' + (value ? escapeHtml(value) : '<span class="rp-blank"></span>') + '</td></tr>';
 }
 
 function ensureOverlay(){
@@ -229,100 +247,74 @@ function formatDate(value){
   var locale = typeof _urlLang !== 'undefined' ? _urlLang : undefined;
   return d.toLocaleDateString(locale, {day:'2-digit',month:'2-digit',year:'numeric'});
 }
+function formatTime(d){
+  var locale = typeof _urlLang !== 'undefined' ? _urlLang : undefined;
+  return d.toLocaleTimeString(locale, {hour:'2-digit',minute:'2-digit'});
+}
 
 function headerHtml(){
   var c = INFO.company, cu = INFO.customer, v = INFO.vehicle, j = INFO.job;
   var jobNo = j.number || window.__ctxJob || '';
   var carstock = j.carstock || window.__ctxCarstock || '';
-  var reference = INFO.reference || ((jobNo ? 'OR ' + jobNo : '') + (carstock ? (jobNo ? ' · ' : '') + tr('reportCarstock','Véhicule') + ' ' + carstock : ''));
-  var now = new Date();
-  var locale = typeof _urlLang !== 'undefined' ? _urlLang : undefined;
+  var intro = fill(INFO.intro || tr('reportIntro','Je, soussigné garage %name, %role sis à %city au %address, certifie avoir constaté, en présence du client, l’état du véhicule décrit ci-dessous :'),
+    {name:c.name, role:c.role, city:c.city, address:c.address});
   return (
-    '<header class="rp-head">' +
-      '<div class="rp-company">' +
-        (c.logo ? '<img class="rp-logo" src="' + escapeHtml(c.logo) + '" alt="">' : '') +
-        '<div class="rp-company-name">' + escapeHtml(c.name || tr('reportCompanyPlaceholder','[Nom du garage / société]')) + '</div>' +
-        '<div class="rp-company-lines">' + [c.address, c.phone, c.email, c.vat].filter(Boolean).map(escapeHtml).join('<br>') + '</div>' +
-      '</div>' +
-      '<div class="rp-title-block">' +
-        '<div class="rp-doc-kicker">' + escapeHtml(tr('reportKicker','État des lieux du véhicule')) + '</div>' +
-        '<h1 class="rp-title">' + escapeHtml(INFO.title || tr('reportTitle','Rapport des dégâts')) + '</h1>' +
-        '<div class="rp-ref">' + escapeHtml(reference || '') + '</div>' +
-        '<div class="rp-generated">' + escapeHtml(tr('reportGenerated','Généré le')) + ' ' + escapeHtml(now.toLocaleDateString(locale) + ' ' + now.toLocaleTimeString(locale,{hour:'2-digit',minute:'2-digit'})) + '</div>' +
-      '</div>' +
-    '</header>' +
-    '<section class="rp-parties">' +
-      '<div class="rp-box">' +
-        '<h2>' + escapeHtml(tr('reportVehicle','Véhicule')) + '</h2>' +
-        field(tr('reportMakeModel','Marque / modèle'), [v.make, v.model].filter(Boolean).join(' ') || currentVehicleLabel()) +
-        field(tr('reportPlate','Immatriculation'), v.plate) +
-        field(tr('reportVin','N° de châssis (VIN)'), v.vin) +
-        field(tr('reportColor','Couleur'), v.color) +
-        '<div class="rp-field-row">' + field(tr('reportKm','Kilométrage'), v.km ? v.km + ' km' : '') + field(tr('reportFuel','Carburant'), v.fuel) + '</div>' +
-        field(tr('reportCarstock','Véhicule') + ' n°', carstock) +
-      '</div>' +
-      '<div class="rp-box">' +
-        '<h2>' + escapeHtml(tr('reportCustomer','Client')) + '</h2>' +
-        field(tr('reportName','Nom'), cu.name) +
-        field(tr('reportAddress','Adresse'), cu.address) +
-        '<div class="rp-field-row">' + field(tr('reportPhone','Téléphone'), cu.phone) + field(tr('reportEmail','E-mail'), cu.email) + '</div>' +
-        field(tr('reportLicence','Permis n°'), cu.licence) +
-        '<h2 class="rp-sub">' + escapeHtml(tr('reportJobTitle','Intervention')) + '</h2>' +
-        '<div class="rp-field-row">' + field(tr('reportJob','OR') + ' n°', jobNo) + field(tr('reportDate','Date'), formatDate(j.date) || formatDate(now)) + '</div>' +
-        '<div class="rp-field-row">' + field(tr('reportDateIn','Entrée'), formatDate(j.dateIn)) + field(tr('reportDateOut','Sortie'), formatDate(j.dateOut)) + '</div>' +
-        '<div class="rp-field-row">' + field(tr('reportAgent','Réceptionné par'), j.agent) + field(tr('reportJobType','Type'), j.type) + '</div>' +
-      '</div>' +
-    '</section>'
+    (c.logo ? '<img class="rp-logo" src="' + escapeHtml(c.logo) + '" alt="">' : '') +
+    '<h1 class="rp-title">' + escapeHtml(INFO.title || tr('reportTitle','État des lieux des dégâts du véhicule :')) + '</h1>' +
+    '<p class="rp-intro">' + intro + '</p>' +
+    '<table class="rp-fields">' +
+      fieldRow(tr('reportFieldCustomer','De Mr et/ou Mme'), cu.name) +
+      fieldRow(tr('reportFieldVehicle','Le véhicule'), [v.make, v.model].filter(Boolean).join(' ') || currentVehicleLabel()) +
+      fieldRow(tr('reportFieldVin','Châssis n°'), v.vin) +
+      fieldRow(tr('reportFieldPlate','Immatriculé'), v.plate) +
+      fieldRow(tr('reportFieldKm','Kilométrage'), v.km ? (String(v.km).replace(/\s*km$/i,'') + ' km') : '') +
+      fieldRow(tr('reportFieldFuel','Niveau carburant'), v.fuel) +
+      fieldRow(tr('reportFieldFile','Dossier (OR / véhicule n°)'), [jobNo, carstock].filter(Boolean).join(' / ')) +
+    '</table>' +
+    '<p class="rp-intro">' + escapeHtml(INFO.commitment || tr('reportCommitment','Par signature de la présente, le client reconnaît l’exactitude des dégâts relevés ci-dessous ; tout dégât non mentionné est réputé absent au moment de la prise en charge :')) + '</p>'
   );
+}
+
+function damageLine(d, box){
+  var grav = GRAVITIES.find(function(g){return g.id===d.gravity;}) || GRAVITIES[1];
+  var types = d.damageTypes.map(function(tp){return tp.name;}).join(', ');
+  var memo = typeof stripModelTag === 'function' ? stripModelTag(d.memo || '') : (d.memo || '');
+  var n = (PHOTOS[d.damageId] || (d.images || [])).length;
+  return '<li><span class="rp-num" style="background:' + grav.color + '">' + escapeHtml(d.damageId) + '</span>' +
+    '<span class="rp-dl"><b>' + escapeHtml(zoneLabel(d, box)) + ' — ' + escapeHtml(types) + '</b> (' + escapeHtml(gravName(d.gravity)) + ')' +
+    (memo ? ' : ' + escapeHtml(memo) : '') + (n ? ' <span class="rp-dl-photos">📷 ' + n + '</span>' : '') + '</span></li>';
 }
 
 function viewsHtml(box, items){
   lastViewStats = [];
-  var cards = VIEW_DEFS.map(function(def){
+  var shots = {};
+  VIEW_DEFS.forEach(function(def){
     var shot = captureView(def,box,items);
+    shots[def.id] = shot;
     lastViewStats.push({id:def.id,count:shot.count,ids:shot.ids});
-    return '<figure class="rp-view rp-view-' + def.id + '">' +
-      '<img alt="' + escapeHtml(tr(def.label,def.fallback)) + '" src="' + shot.url + '">' +
-      '<figcaption><span>' + escapeHtml(tr(def.label,def.fallback)) + '</span><span class="rp-view-count">' + shot.count + ' ' + escapeHtml(tr('reportMarkers','dégât(s) visible(s)')) + '</span></figcaption>' +
-    '</figure>';
+  });
+  var list = items.length
+    ? '<ol class="rp-dlist">' + items.map(function(d){ return damageLine(d, box); }).join('') + '</ol>'
+    : '<p class="rp-empty">' + escapeHtml(tr('reportNoDamage','Aucun dégât constaté.')) + '</p>';
+  var clauses = (INFO.clauses && INFO.clauses.length)
+    ? '<ol class="rp-clauses">' + INFO.clauses.map(function(cl){ return '<li>' + escapeHtml(cl) + '</li>'; }).join('') + '</ol>'
+    : '';
+  var small = ['front','rear','left','right'].map(function(id){
+    var def = VIEW_DEFS.find(function(x){ return x.id === id; });
+    return '<figure class="rp-view"><img alt="' + escapeHtml(tr(def.label,def.fallback)) + '" src="' + shots[id].url + '"><figcaption>' + escapeHtml(tr(def.label,def.fallback)) + '</figcaption></figure>';
   }).join('');
   var legend = GRAVITIES.map(function(g){
     return '<span><i class="rp-dot" style="background:' + g.color + '"></i>' + escapeHtml(gravName(g.id)) + '</span>';
   }).join('');
-  return '<section class="rp-section rp-views">' +
-    '<h2 class="rp-h">' + escapeHtml(tr('reportViewsTitle','État du véhicule')) + '<span class="rp-h-right">' + items.length + ' ' + escapeHtml(tr('reportDamagesCount','dégât(s) relevé(s)')) + '</span></h2>' +
-    '<div class="rp-views-grid">' + cards + '</div>' +
-    '<div class="rp-legend"><span class="rp-legend-title">' + escapeHtml(tr('reportSeverity','Gravité')) + ' :</span>' + legend + '</div>' +
-  '</section>';
-}
-
-function tableHtml(items, box){
-  var rows;
-  if (!items.length) {
-    rows = '<tr><td colspan="6" class="rp-empty">' + escapeHtml(tr('reportNoDamage','Aucun dégât enregistré')) + '</td></tr>';
-  } else {
-    rows = items.map(function(d){
-      var grav = GRAVITIES.find(function(g){return g.id===d.gravity;}) || GRAVITIES[1];
-      var types = d.damageTypes.map(function(tp){return tp.name;}).join(', ');
-      var memo = typeof stripModelTag === 'function' ? stripModelTag(d.memo || '') : (d.memo || '');
-      var n = (PHOTOS[d.damageId] || (d.images || [])).length;
-      return '<tr>' +
-        '<td class="num"><span class="rp-num" style="background:' + grav.color + '">' + escapeHtml(d.damageId) + '</span></td>' +
-        '<td>' + escapeHtml(zoneLabel(d, box)) + '</td>' +
-        '<td>' + escapeHtml(types) + '</td>' +
-        '<td class="sev"><i class="rp-dot" style="background:' + grav.color + '"></i>' + escapeHtml(gravName(d.gravity)) + '</td>' +
-        '<td>' + escapeHtml(memo) + '</td>' +
-        '<td class="num">' + (n ? n : '–') + '</td>' +
-      '</tr>';
-    }).join('');
-  }
-  return '<section class="rp-section">' +
-    '<h2 class="rp-h">' + escapeHtml(tr('reportSummary','Relevé des dégâts')) + '</h2>' +
-    '<table class="rp-table"><thead><tr>' +
-      '<th>#</th><th>' + escapeHtml(tr('reportZone','Zone')) + '</th><th>' + escapeHtml(tr('reportTypes','Type(s)')) + '</th>' +
-      '<th>' + escapeHtml(tr('reportSeverity','Gravité')) + '</th><th>' + escapeHtml(tr('reportMemo','Observation')) + '</th><th>' + escapeHtml(tr('reportPhotos','Photos')) + '</th>' +
-    '</tr></thead><tbody>' + rows + '</tbody></table>' +
-  '</section>';
+  return '<table class="rp-box"><tr>' +
+      '<td class="rp-box-text">' +
+        '<div class="rp-box-title">' + escapeHtml(tr('reportDamagesBoxTitle','Dégâts constatés')) + ' (' + items.length + ')</div>' +
+        list + clauses +
+      '</td>' +
+      '<td class="rp-box-view"><img alt="' + escapeHtml(tr('viewTop','Dessus')) + '" src="' + shots.top.url + '"><div class="rp-box-cap">' + escapeHtml(tr('viewTop','Dessus')) + '</div></td>' +
+    '</tr></table>' +
+    '<div class="rp-views-row">' + small + '</div>' +
+    '<div class="rp-legend">' + legend + '</div>';
 }
 
 function photosHtml(items){
@@ -341,32 +333,49 @@ function photosHtml(items){
     });
   });
   if (!cards.length) return '';
-  return '<section class="rp-section rp-photos-section">' +
-    '<h2 class="rp-h">' + escapeHtml(tr('reportPhotosTitle','Photos des dégâts')) + '</h2>' +
+  var c = INFO.company, j = INFO.job;
+  var ref = [j.number || window.__ctxJob, INFO.vehicle.plate].filter(Boolean).join(' · ');
+  return '<section class="rp-photos-section">' +
+    '<h2 class="rp-title rp-title-sm">' + escapeHtml(tr('reportPhotosTitle','Photos des dégâts')) + (ref ? ' — ' + escapeHtml(ref) : '') + '</h2>' +
     '<div class="rp-photos">' + cards.join('') + '</div>' +
   '</section>';
 }
 
 function footerHtml(){
-  return '<section class="rp-section rp-obs">' +
-    '<h2 class="rp-h">' + escapeHtml(tr('reportObservations','Observations')) + '</h2>' +
-    '<div class="rp-obs-box">' + (INFO.observations ? escapeHtml(INFO.observations) : '') + '</div>' +
-  '</section>' +
-  '<section class="rp-signatures">' +
-    '<div class="rp-sign"><div class="rp-sign-title">' + escapeHtml(tr('reportSignCompany','Pour le garage')) + '</div><div class="rp-sign-sub">' + escapeHtml(tr('reportSignName','Nom, date et signature')) + '</div><div class="rp-sign-area"></div></div>' +
-    '<div class="rp-sign"><div class="rp-sign-title">' + escapeHtml(tr('reportSignCustomer','Le client')) + '</div><div class="rp-sign-sub">' + escapeHtml(tr('reportSignApproved','« Lu et approuvé », date et signature')) + '</div><div class="rp-sign-area"></div></div>' +
-  '</section>' +
-  '<footer class="rp-foot">' + escapeHtml(tr('reportFootnote','Le présent document constate l\'état de la carrosserie au moment de la prise en charge. Les dégâts non mentionnés sont réputés absents. Les positions sont relevées sur le modèle 3D du véhicule.')) + '</footer>';
+  var c = INFO.company; var now = new Date();
+  var made = fill(tr('reportMadeAt','Fait à %place, en %n exemplaires le %date, à %time'),
+    {place: INFO.place || c.city, n: INFO.copies || 2, date: formatDate(INFO.job.date) || formatDate(now), time: INFO.time || formatTime(now)});
+  var remarks = INFO.observations ? '<div class="rp-remarks-text">' + escapeHtml(INFO.observations) + '</div>' + dottedLines(1) : dottedLines(2);
+  var ret = INFO.returnSection === false ? '' :
+    '<table class="rp-box rp-return"><tr>' +
+      '<td class="rp-box-text">' +
+        '<div class="rp-box-title rp-center">' + escapeHtml(tr('reportReturnTitle','Retour du véhicule')) + '</div>' +
+        '<p class="rp-return-line">' + escapeHtml(tr('reportReturnDate','Le')) + ' <span class="rp-dots">….</span> / <span class="rp-dots">….</span> / <span class="rp-dots">….</span> &nbsp; ' + escapeHtml(tr('reportAt','à')) + ' <span class="rp-dots">….</span> h <span class="rp-dots">….</span></p>' +
+        '<p class="rp-return-line">' + escapeHtml(tr('reportReturnKm','Kilométrage :')) + '</p>' +
+        '<p class="rp-return-line">' + escapeHtml(tr('reportRemarks','Remarques :')) + '</p>' + dottedLines(1) +
+        '<p class="rp-return-line rp-sign-label">' + escapeHtml(tr('reportSignatures','Signatures')) + '</p>' +
+        '<div class="rp-sign-row"><span>' + escapeHtml(tr('reportTheGarage','Le garage')) + '</span><span>' + escapeHtml(tr('reportTheCustomer','Le client')) + '</span></div>' +
+        '<div class="rp-sign-space"></div>' +
+      '</td>' +
+      '<td class="rp-box-view"><img alt="" src="' + (lastTopUrl || '') + '"><div class="rp-box-cap">' + escapeHtml(tr('reportReturnDiagram','Nouveaux dégâts au retour')) + '</div></td>' +
+    '</tr></table>';
+  return '<p class="rp-remarks"><u>' + escapeHtml(tr('reportRemarks','Remarques :')) + '</u></p>' + remarks +
+    '<p class="rp-made">' + made + '</p>' +
+    '<div class="rp-sign-row rp-sign-main"><span>' + fill(tr('reportForCompany','Pour %name'), {name:c.name}) + '</span><span>' + escapeHtml(tr('reportCustomerSignature','Signature du client')) + '</span></div>' +
+    '<div class="rp-sign-space"></div>' +
+    ret;
 }
-
+var lastTopUrl = '';
 function render2DReport(){
   if (!carGroup || !_modelReady) return false;
   carGroup.updateMatrixWorld(true);
   var items = validDamages();
   var box = new THREE.Box3().setFromObject(carGroup);
   applyToolbarTexts();
+  var views = viewsHtml(box, items);
+  lastTopUrl = (lastViewStats.length && typeof captureView === 'function') ? captureView(VIEW_DEFS[1], box, []).url : '';
   document.getElementById('report2DPaper').innerHTML =
-    '<div class="rp-page">' + headerHtml() + viewsHtml(box, items) + tableHtml(items, box) + footerHtml() + '</div>' +
+    '<div class="rp-page">' + headerHtml() + views + footerHtml() + '</div>' +
     photosHtml(items);
   return true;
 }
@@ -413,11 +422,12 @@ window.setRapportInfos = function(json){
   try {
     var o = typeof json === 'string' ? JSON.parse(json) : (json || {});
     var flat = {
-      company:{name:o.companyName, address:o.companyAddress, phone:o.companyPhone, email:o.companyEmail, vat:o.companyVat, logo:o.companyLogo},
+      company:{name:o.companyName, role:o.companyRole, city:o.companyCity, address:o.companyAddress, phone:o.companyPhone, email:o.companyEmail, vat:o.companyVat, logo:o.companyLogo},
       customer:{name:o.customerName, address:o.customerAddress, phone:o.customerPhone, email:o.customerEmail, licence:o.customerLicence},
       vehicle:{make:o.make, model:o.model, plate:o.plate, vin:o.vin, color:o.color, km:o.km, fuel:o.fuel},
       job:{number:o.jobNumber, carstock:o.carstock, date:o.date, agent:o.agent, type:o.jobType, dateIn:o.dateIn, dateOut:o.dateOut, place:o.place},
-      observations:o.observations, title:o.title, reference:o.reference
+      observations:o.observations, title:o.title, reference:o.reference,
+      intro:o.intro, commitment:o.commitment, clauses:o.clauses, place:o.place, copies:o.copies, time:o.time, returnSection:o.returnSection
     };
     merge(INFO, flat);
     merge(INFO, {company:o.company, customer:o.customer, vehicle:o.vehicle, job:o.job});
@@ -475,7 +485,7 @@ window.__report2DDiag = function(){
     damageCount:validDamages().length,
     photoCount:Object.keys(PHOTOS).reduce(function(n,k){ return n + PHOTOS[k].length; },0),
     views:lastViewStats.slice(),
-    tableRows:document.querySelectorAll('.rp-table tbody tr').length
+    tableRows:document.querySelectorAll('.rp-dlist li').length
   };
 };
 
