@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Marquage des dégâts — iReach (WinDev)</title>
+<link rel="stylesheet" href="report2d.css?v=18">
 <style>
   :root{
     --bg:#f4f5f7; --panel:#ffffff; --border:#e2e4e9; --text:#1c1e21;
@@ -20,7 +21,6 @@
   #hint{position:absolute; top:12px; left:12px; font-size:12px; color:var(--muted); background:var(--panel); padding:5px 12px; border-radius:8px; border:1px solid var(--border); z-index:10;}
   #side{width:280px; background:var(--panel); border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden;}
 
-  /* PORTRAIT / écran étroit : on empile (voiture en haut, panneau en bas) au lieu de côte à côte */
   @media (orientation: portrait), (max-width: 680px){
     #app{flex-direction:column;}
     #stage{flex:1 1 auto; min-height:58%;}
@@ -32,6 +32,7 @@
   .thumbs{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;}
   .thumb{padding:10px 4px; font-size:11px; text-align:center; border:1px solid var(--border); border-radius:8px; background:var(--panel); cursor:pointer; transition:.15s;}
   .thumb.active{border:2px solid var(--accent); background:var(--accent-bg); color:var(--accent); font-weight:600;}
+  .thumb.locked{opacity:0.3; cursor:not-allowed; pointer-events:none;}
   .thumb .ic{font-size:20px; display:block; margin-bottom:4px;}
   #dmgList{flex:1; overflow:auto; padding:8px 12px;}
   .dmgRow{display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; margin-bottom:6px; font-size:12px; cursor:pointer;}
@@ -59,83 +60,156 @@
   #popup .pf button{flex:1; padding:6px; font-size:12px; border-radius:6px; cursor:pointer; border:1px solid var(--border); background:var(--panel);}
   #popup .pf button.ok{background:var(--accent); color:#fff; border-color:var(--accent);}
   textarea#memo{width:100%; border:1px solid var(--border); border-radius:6px; padding:5px 7px; font-size:11px; font-family:inherit; resize:vertical; min-height:28px; margin-top:2px;}
+  .photoRow{display:flex; flex-wrap:wrap; gap:6px; margin-top:2px;}
+  .photoChip{position:relative; width:44px; height:44px; border:1px solid var(--border); border-radius:6px; background:var(--accent-bg); display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer;}
+  .photoChip.pending{opacity:.5; cursor:default;}
+  .photoChip .rm{position:absolute; top:-6px; right:-6px; width:16px; height:16px; border-radius:50%; background:var(--danger); color:#fff; font-size:10px; line-height:16px; text-align:center; cursor:pointer;}
+  #btnAddPhoto{width:100%; margin-top:6px;}
+  .dmgRow .ph{color:var(--muted); font-size:11px;}
 </style>
 </head>
 <body>
 <div id="app">
   <div id="stage">
     <div id="canvasWrap"></div>
-    <div id="hint">Clic sur la carrosserie = poser un dégât · glisser = pivoter · molette = zoom</div>
-    <div id="loader"><div class="spinner"></div><div id="loadTxt" style="font-size:13px;color:var(--muted)">Initialisation…</div></div>
+    <div id="hint"></div>
+    <div id="loader"><div class="spinner"></div><div id="loadTxt" style="font-size:13px;color:var(--muted)"></div></div>
     <div id="popup">
-      <div class="ph"><span id="popupTitle">Dégât #1</span><span class="x" onclick="closePopup(true)">✕</span></div>
+      <div class="ph"><span id="popupTitle"></span><span class="x" onclick="closePopup(true)">✕</span></div>
       <div class="pb">
-        <div class="plabel">Types (max 5)</div>
+        <div class="plabel" id="lblTypes"></div>
         <div id="typeList"></div>
-        <div class="plabel" style="margin-top:8px;">Gravité</div>
+        <div class="plabel" id="lblGravity" style="margin-top:8px;"></div>
         <div class="gravRow" id="gravRow"></div>
-        <div class="plabel" style="margin-top:8px;">Note</div>
-        <textarea id="memo" placeholder="Commentaire optionnel…"></textarea>
+        <div class="plabel" id="lblNote" style="margin-top:8px;"></div>
+        <textarea id="memo"></textarea>
+        <div class="plabel" id="lblPhotos" style="margin-top:8px;"></div>
+        <div class="photoRow" id="photoRow"></div>
+        <button type="button" class="btn" id="btnAddPhoto" onclick="requestPhoto()"></button>
       </div>
       <div class="pf">
-        <button onclick="closePopup(true)">Annuler</button>
-        <button class="ok" onclick="confirmPopup()">Valider</button>
+        <button id="btnPopupCancel" onclick="closePopup(true)"></button>
+        <button class="ok" id="btnPopupOk" onclick="confirmPopup()"></button>
       </div>
     </div>
   </div>
   <div id="side">
     <div class="sec">
-      <h3>Modèle de véhicule</h3>
+      <h3 id="lblVehicle"></h3>
       <div class="thumbs" id="thumbs"></div>
     </div>
     <div class="sec" style="flex:1; display:flex; flex-direction:column; padding-bottom:0;">
-      <h3>Dégâts posés (<span id="cnt">0</span>)</h3>
+      <h3><span id="lblDamages"></span> (<span id="cnt">0</span>)</h3>
       <div id="dmgList"></div>
     </div>
     <div class="actions">
-      <button class="btn" onclick="clearAll()">Tout effacer</button>
+      <button class="btn" id="btnClearAll" onclick="clearAll()"></button>
+      <button class="btn" id="btnReport2D" onclick="open2DReport()"></button>
       <button class="btn primary" onclick="exportJSON()">JSON</button>
     </div>
   </div>
 </div>
 
-<!-- ================================================================
-     LIBRAIRIES
-     Les <script src> fonctionnent en file:// (pas de restriction CORS).
-     - Par défaut : depuis un CDN (nécessite internet).
-     - Pour un poste WinDev SANS internet : télécharge ces 4 fichiers
-       dans un sous-dossier ./libs/ et remplace les URLs par des chemins
-       relatifs, ex :  <script src="libs/three.min.js"></script>
-     ================================================================ -->
+<!-- ============ LANGUE : toujours charger FR (maître) + la langue choisie ============ -->
+<script src="lang_fr.js"></script>
+<script>
+  /* Sauvegarder le français comme base avant que le fichier suivant écrase LANG_DATA */
+  var LANG_FR = {};
+  if (typeof LANG_DATA !== 'undefined') {
+    for (var _k in LANG_DATA) LANG_FR[_k] = LANG_DATA[_k];
+  }
+</script>
+<script>
+  /* Charger le fichier de la langue choisie (si pas FR, sinon LANG_DATA reste le FR) */
+  var _urlLang = new URLSearchParams(window.location.search).get('lang') || 'fr';
+  var _allowedLangs = ['fr','nl','en'];
+  if (_allowedLangs.indexOf(_urlLang) === -1) _urlLang = 'fr';
+  if (_urlLang !== 'fr') {
+    document.write('<script src="lang_' + _urlLang + '.js"><\/script>');
+  }
+</script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
-/* ============ DÉTECTION DU CONTEXTE ============
-   file://  -> WinDev ou double-clic : on NE PEUT PAS charger un .glb par requête XHR.
-               On attend que WinDev pousse le modèle via loadVehicleGLB(base64,...).
-   http(s)  -> test navigateur avec serveur local : on charge peugeot308.glb par fichier. */
+
+/* ============ i18n — FICHIERS EXTERNES ============
+   Fichiers : lang_fr.js (maître), lang_nl.js, lang_en.js
+   Chacun expose var LANG_DATA = { ... }
+   Le français est chargé EN PREMIER via <script>, puis la langue
+   choisie par-dessus. Les clés manquantes tombent sur le français. */
+
+/* LANG_FR = copie du français (chargé par lang_fr.js avant ce script) */
+var T = {};
+
+function initI18n() {
+  // LANG_DATA a été écrasé par le dernier <script lang_xx.js> chargé
+  // On fusionne : français d'abord, puis la langue choisie par-dessus
+  for (var k in LANG_FR) { T[k] = LANG_FR[k]; }        // base = français
+  if (typeof LANG_DATA !== 'undefined') {
+    for (var k in LANG_DATA) { T[k] = LANG_DATA[k]; }   // surcharge avec la langue choisie
+  }
+}
+
+function t(key, replacements) {
+  var s = T[key] || key;
+  if (replacements) {
+    for (var k in replacements) {
+      s = s.replace('%' + k, replacements[k]);
+    }
+  }
+  return s;
+}
+
+/* Initialiser les traductions (fusionner FR + langue choisie) */
+initI18n();
+
+/* ============ APPLIQUER LES TEXTES i18n AU DOM ============ */
+function applyI18n() {
+  document.getElementById('hint').textContent = t('hint');
+  document.getElementById('loadTxt').textContent = t('loading');
+  document.getElementById('lblVehicle').textContent = t('lblVehicle');
+  document.getElementById('lblDamages').textContent = t('lblDamages');
+  document.getElementById('lblTypes').textContent = t('lblTypes');
+  document.getElementById('lblGravity').textContent = t('lblGravity');
+  document.getElementById('lblNote').textContent = t('lblNote');
+  document.getElementById('btnClearAll').textContent = t('btnClearAll');
+  document.getElementById('btnPopupCancel').textContent = t('btnCancel');
+  document.getElementById('btnPopupOk').textContent = t('btnOk');
+  document.getElementById('memo').placeholder = t('memoPlaceholder');
+  document.getElementById('lblPhotos').textContent = t('lblPhotos');
+  document.getElementById('btnAddPhoto').textContent = t('btnAddPhoto');
+}
+
+/* ============ DÉTECTION DU CONTEXTE ============ */
 const FILE_MODE = (location.protocol === 'file:');
 
 /* ============ DONNÉES ============ */
 const DAMAGE_TYPES = [
-  {id:1,name:'Rust',icon:'🦠'},{id:2,name:'Dent',icon:'🔨'},
-  {id:3,name:'Hail',icon:'❄️'},{id:4,name:'Birdpoop',icon:'💩'},
-  {id:5,name:'Scratch',icon:'✏️'},{id:6,name:'Windshield crack',icon:'💠'},
-  {id:7,name:'Windshield star',icon:'✴️'},
+  {id:1,name:t('dmgRust'),icon:'🦠'},{id:2,name:t('dmgDent'),icon:'🔨'},
+  {id:3,name:t('dmgHail'),icon:'❄️'},{id:4,name:t('dmgBirdpoop'),icon:'💩'},
+  {id:5,name:t('dmgScratch'),icon:'✏️'},{id:6,name:t('dmgCrack'),icon:'💠'},
+  {id:7,name:t('dmgStar'),icon:'✴️'},
 ];
 const GRAVITIES = [
-  {id:1,name:'Léger',color:'#5dcaa5'},
-  {id:2,name:'Moyen',color:'#ef9f27'},
-  {id:3,name:'Grave',color:'#e24b4a'},
+  {id:1,color:'#5dcaa5'},
+  {id:2,color:'#ef9f27'},
+  {id:3,color:'#e24b4a'},
 ];
-/* Un seul véhicule pour l'instant. Pour en ajouter : pousser un nouvel objet
-   { id, label, file } dans VEHICLES et déposer le .glb à côté du HTML. */
+/* Libellés de gravité traduits (fonction, pas constante, car T peut changer) */
+function gravName(id) {
+  if (id === 1) return t('sevLow');
+  if (id === 2) return t('sevMedium');
+  if (id === 3) return t('sevHigh');
+  return '';
+}
+
 const VEHICLES = [
-  {id:'peugeot308', label:'Peugeot 308', file:'peugeot308.glb'},
-  {id:'hyundai_tucson', label:'hyundai_tucson', file:'hyundai_tucson.glb'},
-  {id:'volkswagen_van_t6', label:'Volkswagen Van T6', file:'volkswagen_van_t6.glb'}
+  {id:'peugeot308', label:'Berline', file:'berline.glb'},
+  {id:'hyundai_tucson', label:'SUV', file:'suv.glb'},
+  {id:'volkswagen_van_t6', label:'Van', file:'van.glb'}
 ];
 
 let damages = [];
@@ -151,6 +225,7 @@ const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.setSize(wrap.clientWidth, wrap.clientHeight);
 renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.setClearColor(0xeef1f5);
 wrap.appendChild(renderer.domElement);
 
 scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.9));
@@ -174,9 +249,6 @@ function showLoader(txt){ document.getElementById('loader').style.display='flex'
   if(txt) document.getElementById('loadTxt').textContent=txt; }
 function hideLoader(){ document.getElementById('loader').style.display='none'; }
 
-/* ---- Applique un modèle (gltf déjà parsé) à la scène ----
-   ready=false pour le placeholder : n'active pas le flush des dégâts en attente,
-   ils seront reposés quand le vrai modèle arrivera via loadVehicleGLB. */
 function applyGltf(gltf, id, label, ready){
   if(carGroup) scene.remove(carGroup);
   carGroup = gltf.scene;
@@ -204,7 +276,6 @@ function applyGltf(gltf, id, label, ready){
   }
 }
 
-/* ---- base64 -> ArrayBuffer (tolère espaces/retours ligne) ---- */
 function b64ToArrayBuffer(b64){
   const clean = String(b64).replace(/\s+/g,'');
   const bin = atob(clean);
@@ -213,22 +284,19 @@ function b64ToArrayBuffer(b64){
   return bytes.buffer;
 }
 
-/* ---- Parse un GLB depuis des octets (fonctionne en file://) ---- */
 function parseGLB(buffer, id, label){
-  showLoader('Décodage du modèle…');
+  showLoader(t('decoding'));
   gltfLoader.parse(buffer, '', gltf=>applyGltf(gltf,id,label),
-    err=>{ showLoader('Erreur de parsing du modèle (voir console)'); console.error(err); });
+    err=>{ showLoader(t('errParse')); console.error(err); });
 }
 
-/* ---- MODE DEV (serveur HTTP) : charge depuis un fichier ---- */
 function loadVehicleFromFile(id){
   const v = VEHICLES.find(x=>x.id===id);
-  showLoader('Chargement '+v.label+'…');
+  showLoader(t('loadingModel')+v.label+'…');
   gltfLoader.load(v.file, gltf=>applyGltf(gltf,id), undefined,
-    err=>{ showLoader('Erreur de chargement — sers le dossier en HTTP'); console.error(err); });
+    err=>{ showLoader(t('errLoad')); console.error(err); });
 }
 
-/* ---- Placeholder procédural (aucun fichier requis) ---- */
 function loadPlaceholder(){
   const g = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({color:0x9fb4c8, metalness:0.25, roughness:0.6});
@@ -236,13 +304,11 @@ function loadPlaceholder(){
   const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.5,2), mat.clone()); cabin.position.set(0,0.95,-0.2);
   g.add(body, cabin);
   applyGltf({scene:g}, currentVehicleId, null, false);
-  showLoader('En attente du modèle depuis WinDev…'); setTimeout(hideLoader, 600);
+  showLoader(t('waitModel')); setTimeout(hideLoader, 600);
 }
 
-/* ---- Aiguillage clic vignette ----
-   HTTP  : on charge le .glb depuis le disque à côté du HTML.
-   file: : on demande à WinDev de pousser le modèle (loadVehicleGLB). */
 function requestVehicle(id){
+  _modelReady = false;
   if(FILE_MODE){
     if(typeof window.__onVehiclePick==='function') window.__onVehiclePick(id);
   } else {
@@ -271,7 +337,7 @@ renderer.domElement.addEventListener('pointerup', e=>{
   const dmg = {
     damageId: nextId(),
     x:+local.x.toFixed(4), y:+local.y.toFixed(4), z:+local.z.toFixed(4),
-    memo:'', gravity:2, damageTypes:[], _world:hits[0].point.clone()
+    memo:'', gravity:2, damageTypes:[], images:[], _world:hits[0].point.clone()
   };
   damages.push(dmg);
   addMarker(dmg);
@@ -297,40 +363,50 @@ function refreshMarker(dmg){
   if(dmg._marker) dmg._marker.material.color = new THREE.Color(grav.color);
 }
 
+/* ============ GESTION DU TAG [M:X] DANS LE MEMO ============ */
+function stripModelTag(memo) {
+  return (memo || '').replace(/\[M:\d+\]\s*/, '');
+}
+function addModelTag(userText) {
+  var model = window.__ctxModel || 0;
+  if (model > 0) {
+    return '[M:' + model + '] ' + (userText || '');
+  }
+  return userText || '';
+}
+
 /* ============ POPUP CONTEXTUEL ============ */
 function openPopup(index, screenX, screenY){
   editingIndex = index;
   const d = damages[index];
   draftTypes = d.damageTypes.map(t=>t.id);
   draftGravity = d.gravity;
-  document.getElementById('popupTitle').textContent='Dégât #'+d.damageId;
-  document.getElementById('memo').value = d.memo||'';
-  renderTypeList(); renderGravRow();
+  document.getElementById('popupTitle').textContent = t('titlePopup') + d.damageId;
+  document.getElementById('memo').value = stripModelTag(d.memo);
+  renderTypeList(); renderGravRow(); renderPhotoRow();
   const pop = document.getElementById('popup');
   pop.style.display='block';
   const stage = document.getElementById('stage').getBoundingClientRect();
-  // le contenu ne dépasse jamais l'écran → header + contenu + boutons toujours visibles
   const pb = pop.querySelector('.pb');
   if (pb) pb.style.maxHeight = Math.max(110, stage.height - 96) + 'px';
-  const pw = pop.offsetWidth || 188;   // vraie largeur du popup
-  const ph = pop.offsetHeight || 300;  // vraie hauteur du popup (mesurée)
+  const pw = pop.offsetWidth || 188;
+  const ph = pop.offsetHeight || 300;
   let x = (screenX!==undefined? screenX-stage.left+14 : (stage.width-pw)/2);
   let y = (screenY!==undefined? screenY-stage.top-10 : 40);
-  // garder TOUT le popup dans le cadre (bouton Valider toujours visible), marge 8px
   x = Math.max(8, Math.min(x, stage.width  - pw - 8));
   y = Math.max(8, Math.min(y, stage.height - ph - 8));
   pop.style.left=x+'px'; pop.style.top=y+'px';
 }
 function renderTypeList(){
   const box=document.getElementById('typeList'); box.innerHTML='';
-  DAMAGE_TYPES.forEach(t=>{
-    const on=draftTypes.includes(t.id);
+  DAMAGE_TYPES.forEach(tp=>{
+    const on=draftTypes.includes(tp.id);
     const el=document.createElement('div');
     el.className='typeItem'+(on?' on':'');
-    el.innerHTML='<span>'+t.icon+'</span><span>'+t.name+'</span><span class="chk">'+(on?'✓':'')+'</span>';
+    el.innerHTML='<span>'+tp.icon+'</span><span>'+tp.name+'</span><span class="chk">'+(on?'✓':'')+'</span>';
     el.onclick=()=>{
-      if(on) draftTypes=draftTypes.filter(x=>x!==t.id);
-      else { if(draftTypes.length>=5){alert('Maximum 5 types');return;} draftTypes.push(t.id); }
+      if(on) draftTypes=draftTypes.filter(x=>x!==tp.id);
+      else { if(draftTypes.length>=5){alert(t('maxTypes'));return;} draftTypes.push(tp.id); }
       renderTypeList();
     };
     box.appendChild(el);
@@ -343,20 +419,81 @@ function renderGravRow(){
     const el=document.createElement('div');
     el.className='gravBtn'+(on?' on':'');
     if(on) el.style.background=g.color;
-    el.textContent=g.name;
+    el.textContent=gravName(g.id);
     el.onclick=()=>{ draftGravity=g.id; renderGravRow(); };
     box.appendChild(el);
   });
 }
+const MAX_PHOTOS = 6;
+function renderPhotoRow(){
+  const box=document.getElementById('photoRow'); if(!box) return; box.innerHTML='';
+  const d = damages[editingIndex];
+  if(!d) return;
+  (d.images||[]).forEach(function(im){
+    const el=document.createElement('div');
+    el.className='photoChip'+(im.pending?' pending':'');
+    el.title=im.path||'';
+    el.innerHTML='📷'+(im.pending?'':'<span class="rm">✕</span>');
+    el.onclick=function(e){
+      if(e.target.classList.contains('rm')){ e.stopPropagation(); removePhoto(im.path); return; }
+      if(!im.pending) viewPhoto(im.path);
+    };
+    box.appendChild(el);
+  });
+  const btn=document.getElementById('btnAddPhoto');
+  if(btn) btn.disabled = (d.images||[]).length >= MAX_PHOTOS;
+}
+function requestPhoto(){
+  const d = damages[editingIndex];
+  if(!d) return;
+  if((d.images||[]).length>=MAX_PHOTOS){ alert(t('maxPhotos')); return; }
+  envoyerAWinDev(JSON.stringify({
+    action:'REQUEST_PHOTO', damageId:d.damageId,
+    carstock:window.__ctxCarstock, job:window.__ctxJob
+  }));
+}
+function removePhoto(path){
+  const d = damages[editingIndex];
+  if(!d) return;
+  if(!confirm(t('confirmDeletePhoto'))) return;
+  d.images = (d.images||[]).filter(function(im){ return im.path!==path; });
+  renderPhotoRow();
+  renderDmgList();
+  envoyerAWinDev(JSON.stringify({ action:'DELETE_PHOTO', damageId:d.damageId, path:path }));
+}
+function viewPhoto(path){
+  envoyerAWinDev(JSON.stringify({ action:'VIEW_PHOTO', path:path }));
+}
+/* Appelé par WinDev une fois la photo capturée et uploadée sur le serveur d'images */
+window.ajouterPhoto = function(damageId, path){
+  const d = damages.find(function(x){ return x.damageId===+damageId; });
+  if(!d || !path) return 'ERR:not_found';
+  d.images = d.images || [];
+  d.images.push({path:path});
+  if(editingIndex!==null && damages[editingIndex]===d) renderPhotoRow();
+  renderDmgList();
+  return 'OK';
+};
 function confirmPopup(){
   const d=damages[editingIndex];
-  if(draftTypes.length===0){ alert('Sélectionne au moins un type'); return; }
-  d.damageTypes = draftTypes.map(id=>{const t=DAMAGE_TYPES.find(x=>x.id===id); return {id:t.id,name:t.name,icon:t.icon};});
+  if(draftTypes.length===0){ alert(t('noType')); return; }
+  d.damageTypes = draftTypes.map(id=>{const tp=DAMAGE_TYPES.find(x=>x.id===id); return {id:tp.id,name:tp.name,icon:tp.icon};});
   d.gravity = draftGravity;
-  d.memo = document.getElementById('memo').value;
+  var userText = document.getElementById('memo').value;
+  // tag [M:X] seulement sur le premier dégât (damage_id le plus bas)
+  if (d.damageId === getFirstDamageId()) {
+    d.memo = addModelTag(userText);
+  } else {
+    d.memo = userText;
+  }
   refreshMarker(d);
   closePopup(false);
   renderDmgList();
+}
+function getFirstDamageId() {
+  var valid = damages.filter(function(d) { return d.damageTypes.length > 0; });
+  if (valid.length === 0) return -1;
+  return Math.min.apply(null, valid.map(function(d) { return d.damageId; }));
 }
 function closePopup(cancel){
   if(cancel && editingIndex!==null){
@@ -378,7 +515,8 @@ function renderDmgList(){
     const row=document.createElement('div'); row.className='dmgRow';
     row.innerHTML='<span class="gravDot" style="background:'+grav.color+'"></span>'+
       '<span class="id">#'+d.damageId+'</span>'+
-      '<span>'+d.damageTypes.map(t=>t.icon).join('')+'</span>'+
+      '<span>'+d.damageTypes.map(tp=>tp.icon).join('')+'</span>'+
+      ((d.images&&d.images.length) ? '<span class="ph">📷'+d.images.length+'</span>' : '')+
       '<span class="co">'+d.x+','+d.y+','+d.z+'</span>';
     row.onclick=(e)=>{ if(e.target.classList.contains('del'))return; openPopup(i); };
     const del=document.createElement('span'); del.className='del'; del.textContent='✕';
@@ -393,16 +531,16 @@ function renderThumbs(){
   const box=document.getElementById('thumbs'); box.innerHTML='';
   VEHICLES.forEach(v=>{
     const el=document.createElement('div');
-    el.className='thumb'+(v.id===currentVehicleId?' active':'');
+    var isActive = v.id===currentVehicleId;
+    var isLocked = window.__ctxModel > 0 && v.id !== currentVehicleId;
+    el.className='thumb'+(isActive?' active':'')+(isLocked?' locked':'');
     el.innerHTML='<span class="ic">🚗</span>'+v.label;
-    el.onclick=()=>{ if(v.id!==currentVehicleId) requestVehicle(v.id); };
+    el.onclick=()=>{ if(!isLocked && v.id!==currentVehicleId) requestVehicle(v.id); };
     box.appendChild(el);
   });
 }
 function clearAll(silent){
-  if(!silent && damages.filter(d=>d.damageTypes.length).length && !confirm('Effacer tous les dégâts ?')) return;
-  // effacement MANUEL : on memorise les ids pour le champ "deleted" du SAVE.
-  // effacement SILENCIEUX (rechargement/changement de modele) : ce n'est pas une suppression metier.
+  if(!silent && damages.filter(d=>d.damageTypes.length).length && !confirm(t('confirmDelete'))) return;
   if(!silent && window.__deleted){
     damages.forEach(d=>{ if(d.damageId>0) window.__deleted.push(d.damageId); });
   }
@@ -410,23 +548,14 @@ function clearAll(silent){
   renderDmgList();
 }
 function exportJSON(){
-  // IMPORTANT : on copie le message TAMPONNÉ (avec carstock/job), jamais un tableau nu.
-  // Un tableau nu dans le presse-papier peut être ré-appliqué au mauvais véhicule.
   const msg = window.copierPourWindev();
   alert('Copié dans le presse-papier :\n\n' + msg);
   return msg;
 }
 
-/* ============ MAPPING PAGE ↔ BASE DE DONNÉES ============
-   La page manipule en interne : {damageId, x, y, z, gravity, memo, damageTypes:[{id,name,icon}...]}
-   La base attend : {damage_id, position_xvalue, position_yvalue, position_zvalue,
-                     damage_level, memo, idcarstock_damage1..5 (0 si vide)}
-   Ces deux helpers font le pont dans les deux sens, utilisés par le presse-papier
-   et par les hooks WinDev. Les colonnes remplies par WinDev (numberjob, numbercarstock,
-   lastmodifieddatetime, lastmodifiedby, IDCarstock_damage_detail auto, ck… auto)
-   ne sont PAS dans ce JSON — elles sont ajoutées côté WinDev à l'insertion. */
+/* ============ MAPPING PAGE ↔ BASE DE DONNÉES ============ */
 function damageToRow(d){
-  const t = d.damageTypes || [];
+  const tp = d.damageTypes || [];
   return {
     damage_id: d.damageId,
     position_xvalue: d.x,
@@ -434,12 +563,16 @@ function damageToRow(d){
     position_zvalue: d.z,
     damage_level: d.gravity,
     memo: d.memo || '',
-    idcarstock_damage1: t[0] ? t[0].id : 0,
-    idcarstock_damage2: t[1] ? t[1].id : 0,
-    idcarstock_damage3: t[2] ? t[2].id : 0,
-    idcarstock_damage4: t[3] ? t[3].id : 0,
-    idcarstock_damage5: t[4] ? t[4].id : 0
+    digital: (d.images||[]).map(function(im){ return im.path; }).join(','),
+    idcarstock_damage1: tp[0] ? tp[0].id : 0,
+    idcarstock_damage2: tp[1] ? tp[1].id : 0,
+    idcarstock_damage3: tp[2] ? tp[2].id : 0,
+    idcarstock_damage4: tp[3] ? tp[3].id : 0,
+    idcarstock_damage5: tp[4] ? tp[4].id : 0
   };
+}
+function parseDigital(s){
+  return String(s||'').split(',').map(function(p){ return p.trim(); }).filter(Boolean).map(function(p){ return {path:p}; });
 }
 function rowToDamage(o){
   const types = [];
@@ -451,59 +584,51 @@ function rowToDamage(o){
     }
   }
   const x=+o.position_xvalue||0, y=+o.position_yvalue||0, z=+o.position_zvalue||0;
-  if(carGroup) carGroup.updateMatrixWorld(true);   // sinon localToWorld renvoie l'origine
+  if(carGroup) carGroup.updateMatrixWorld(true);
   return {
     damageId: +o.damage_id || nextId(),
     x:x, y:y, z:z,
     memo: o.memo || '',
     gravity: +o.damage_level || 2,
     damageTypes: types,
+    images: parseDigital(o.digital),
     _world: carGroup ? carGroup.localToWorld(new THREE.Vector3(x,y,z)) : new THREE.Vector3(x,y,z)
   };
 }
 
-/* File d'attente : si WinDev pousse les dégâts avant que le modèle 3D soit prêt,
-   on les mémorise ici et on les rejoue automatiquement dès applyGltf du vrai modèle. */
 let _modelReady = false;
 let _pendingLoad = null;
 
-/* ============ HOOKS WINDEV (appelés via ExecuteJS) ============ */
+/* ============ HOOKS WINDEV ============ */
 
-/* WinDev lit le .glb, l'encode en base64 et appelle ceci.
-   C'est LE point d'entrée principal en production. */
 window.loadVehicleGLB = function(base64, id, label){
   try{ parseGLB(b64ToArrayBuffer(base64), id||currentVehicleId, label||null); }
-  catch(e){ showLoader('Erreur base64 (voir console)'); console.error(e); }
+  catch(e){ showLoader(t('errBase64')); console.error(e); }
 };
 
-/* Remplace la liste de types (globale gtabMyDamages) : [{id,name,icon}, ...] */
 window.initDamageTypes = function(json){
   try{ const arr=typeof json==='string'?JSON.parse(json):json;
     DAMAGE_TYPES.length=0;
-    (arr||[]).forEach(t=>DAMAGE_TYPES.push({
-      id: +t.id,
-      name: t.name || t.description || ('Type '+t.id),
-      icon: t.icon || '🔧'
+    (arr||[]).forEach(tp=>DAMAGE_TYPES.push({
+      id: +tp.id,
+      name: tp.name || tp.description || ('Type '+tp.id),
+      icon: tp.icon || '🔧'
     }));
-    // si les dégâts sont arrivés avant les types, on rafraîchit leurs libellés
     damages.forEach(d=>{ d.damageTypes = d.damageTypes.map(x=>DAMAGE_TYPES.find(y=>y.id===x.id)||x); });
     renderDmgList();
   }catch(e){console.error('initDamageTypes',e);}
 };
 
-/* Recharge les dégâts d'un OR à l'ouverture de la fiche.
-   Appelable AVANT que le modèle 3D soit chargé : la donnée est mise en attente
-   et sera appliquée automatiquement dès que le modèle est prêt. */
 window.chargerDommages = function(json){
   if(!_modelReady){ _pendingLoad = json; console.log('[chargerDommages] modèle pas prêt, mis en attente'); return 'PENDING'; }
   try{
     let arr = json;
     if(typeof json==='string'){
       try{ arr = JSON.parse(json); }
-      catch(e){ arr = JSON.parse(json.replace(/(\d),(\d)/g,'$1.$2').replace(/\s+(?=[\d\-.])/g,'')); } // virgule décimale FR
+      catch(e){ arr = JSON.parse(json.replace(/(\d),(\d)/g,'$1.$2').replace(/\s+(?=[\d\-.])/g,'')); }
     }
     clearAll(true);
-    window.__deleted = [];   // nouveau chargement = nouvelle ardoise de suppressions
+    window.__deleted = [];
     (arr||[]).forEach(o => { const d = rowToDamage(o); damages.push(d); addMarker(d); });
     renderDmgList();
     console.log('[chargerDommages] '+damages.length+' dégât(s) affiché(s)');
@@ -511,48 +636,72 @@ window.chargerDommages = function(json){
   }catch(e){ console.error('chargerDommages',e); return 'ERR:'+e.message; }
 };
 
-/* WinDev récupère toute la liste au moment d'enregistrer.
-   Clés = noms de colonnes de Carstock_damage_detail (mapping via damageToRow). */
 window.getDamagesJSON = function(){
   return JSON.stringify(damages.filter(d=>d.damageTypes.length).map(damageToRow));
 };
 
-/* ================================================================
-   PONT WINDEV ↔ PAGE  (v14)
-   Corrige la contamination inter-OR : tout message sortant est
-   TAMPONNÉ avec le couple carstock/job courant. WinDev refuse
-   d'écrire si le tampon ne correspond pas à l'OR ouvert.
-   ================================================================ */
+/* ============ PONT WINDEV ↔ PAGE ============ */
 
 window.__ctxCarstock = 0;
 window.__ctxJob      = 0;
-window.__deleted     = [];   // damage_id supprimes depuis le dernier CHARGER
+window.__ctxModel    = 0;
+window.__deleted     = [];
 
-/* Appelé par WinDev AVANT tout chargement et avant chaque SAVE. */
-window.setContexte = function (carstock, job) {
+/* setContexte avec 3 paramètres : carstock, job, vehicleModel */
+window.setContexte = function (carstock, job, vehicleModel) {
   window.__ctxCarstock = parseInt(carstock, 10) || 0;
   window.__ctxJob      = parseInt(job, 10)      || 0;
-  console.log('[CTX] carstock=' + window.__ctxCarstock + ' job=' + window.__ctxJob);
-  return 'CTX:' + window.__ctxCarstock + '/' + window.__ctxJob;
+  window.__ctxModel    = parseInt(vehicleModel, 10) || 0;
+  console.log('[CTX] carstock=' + window.__ctxCarstock + ' job=' + window.__ctxJob + ' model=' + window.__ctxModel);
+
+  // Si un modèle est défini → charger le bon véhicule et verrouiller
+  if (window.__ctxModel > 0) {
+    var vehicle = VEHICLES.find(function(v) { return v.id === window.__ctxModel; });
+    if (!vehicle) {
+      // chercher par index numérique (1=premier, 2=deuxième, etc.)
+      if (window.__ctxModel <= VEHICLES.length) {
+        vehicle = VEHICLES[window.__ctxModel - 1];
+      }
+    }
+    if (vehicle && vehicle.id !== currentVehicleId) {
+      requestVehicle(vehicle.id);
+    }
+    renderThumbs();
+  }
+
+  return 'CTX:' + window.__ctxCarstock + '/' + window.__ctxJob + '/M' + window.__ctxModel;
 };
 
-/* Construit le message tamponné. damages est une CHAÎNE (double encodage),
-   c'est ce qu'attend SaveDamagesToDatabase côté WinDev. */
+/* Construit le message tamponné */
 function construireMessage(action) {
   var rows = damages.filter(function (d) { return d.damageTypes.length; }).map(damageToRow);
+
+  // Déterminer le modèle à tamponner
+  var modelToSave = window.__ctxModel;
+  if (modelToSave === 0) {
+    // premier save → on note le véhicule actuellement affiché
+    var idx = VEHICLES.findIndex(function(v) { return v.id === currentVehicleId; });
+    if (idx >= 0) modelToSave = idx + 1;
+  }
+
+  // Tamponner [M:X] dans le memo du premier dégât
+  if (modelToSave > 0 && rows.length > 0) {
+    var first = rows[0];
+    if (first.memo.indexOf('[M:') === -1) {
+      first.memo = '[M:' + modelToSave + '] ' + first.memo;
+    }
+  }
+
   return JSON.stringify({
     action:   action || 'GET_DAMAGES_RESPONSE',
     carstock: window.__ctxCarstock,
     job:      window.__ctxJob,
     count:    rows.length,
-    damages:  JSON.stringify(rows),        // CHAINE, pas un tableau : WinDev attend un string
+    damages:  JSON.stringify(rows),
     deleted:  JSON.stringify(window.__deleted || [])
   });
 }
 
-/* Écriture presse-papier tolérante Android WebView.
-   navigator.clipboard échoue sans geste utilisateur : on tente d'abord
-   le textarea + execCommand qui, lui, passe souvent. */
 function ecrirePressePapier(txt) {
   var ok = false;
   try {
@@ -577,8 +726,6 @@ function ecrirePressePapier(txt) {
   return ok;
 }
 
-/* Émission vers WinDev : on arrose les canaux possibles.
-   L'un d'eux déclenche l'événement 266 (OnReceivePostMessage). */
 function envoyerAWinDev(msg) {
   var envoye = false;
   try { window.parent.postMessage(msg, '*'); envoye = true; } catch (e) {}
@@ -588,24 +735,21 @@ function envoyerAWinDev(msg) {
   return envoye;
 }
 
-/* POINT D'ENTRÉE DU BOUTON SAVE WINDEV */
 window.envoyerSauvegarde = function () {
   if (!window.__ctxJob) { console.warn('[SAVE] contexte absent — WinDev va rejeter'); }
   var msg = construireMessage('GET_DAMAGES_RESPONSE');
   console.log('[SAVE] ' + msg.substring(0, 250));
   envoyerAWinDev(msg);
-  ecrirePressePapier(msg);          // MÊME message tamponné dans les deux canaux
+  ecrirePressePapier(msg);
   return msg;
 };
 
-/* Repli explicite appelé par WinDev si le postMessage n'est pas arrivé. */
 window.copierPourWindev = function () {
   var msg = construireMessage('GET_DAMAGES_RESPONSE');
   ecrirePressePapier(msg);
   return msg;
 };
 
-/* Vidage explicite : la page s'ouvre vierge, mais WinDev peut aussi forcer. */
 window.effacerTousLesDegats = function () { clearAll(true); window.__deleted = []; return 'CLEARED'; };
 window.viderCanvas          = window.effacerTousLesDegats;
 
@@ -615,6 +759,7 @@ window.__saveDiag = function () {
     version: window.__version,
     carstock: window.__ctxCarstock,
     job: window.__ctxJob,
+    model: window.__ctxModel,
     total: damages.length,
     valides: damages.filter(function (d) { return d.damageTypes.length; }).length,
     modelReady: _modelReady
@@ -632,16 +777,19 @@ window.__bridgeDiag = function () {
   };
 };
 
-/* Annonce à WinDev que la page est prête (déclenche HTML_READY dans le 266). */
+/* Annonce à WinDev que la page est prête */
 function annoncerPret() {
   envoyerAWinDev(JSON.stringify({ action: 'HTML_READY', version: window.__version }));
 }
 if (document.readyState === 'complete') { setTimeout(annoncerPret, 300); }
 else { window.addEventListener('load', function () { setTimeout(annoncerPret, 300); }); }
 
-/* Optionnel : signaler à WinDev que la page est prête à recevoir un modèle. */
 window.__READY = true;
-window.__version = "v15";
+window.__version = "v19";
+
+window.addEventListener('DOMContentLoaded', function() {
+  applyI18n();
+});
 
 /* ============ BOUCLE ============ */
 function animate(){ requestAnimationFrame(animate); controls.update(); renderer.render(scene,camera); }
@@ -653,14 +801,15 @@ function resizeRenderer(){
 }
 addEventListener('resize', resizeRenderer);
 addEventListener('orientationchange', ()=>{ setTimeout(resizeRenderer, 200); });
-// suit la vraie taille du conteneur même quand la fenêtre ne déclenche pas 'resize' (champ WinDev)
 if(typeof ResizeObserver !== 'undefined'){
   try{ new ResizeObserver(resizeRenderer).observe(wrap); }catch(e){}
 }
 renderThumbs();
-if(FILE_MODE){ loadPlaceholder(); }              // WinDev / double-clic → attend le push loadVehicleGLB
-else { loadVehicleFromFile(currentVehicleId); }  // serveur HTTP → charge peugeot308.glb directement
+applyI18n();
+if(FILE_MODE){ loadPlaceholder(); }
+else { loadVehicleFromFile(currentVehicleId); }
 animate();
 </script>
+<script src="report2d.js?v=18"></script>
 </body>
 </html>
