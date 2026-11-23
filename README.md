@@ -20,6 +20,9 @@ s'ajoute d'abord dans `lang_fr.js`.
 | `chargerPhotos(json)` | photos des dégâts pour le rapport : `[{damage_id, path, src}]` (`src` = base64 ou URL) |
 | `open2DReport()` / `print2DReport()` / `close2DReport()` | ouvrir / imprimer / fermer le contrat |
 | `get2DReportPayload()` | données du rapport (JSON) |
+| `setImpressionWinDev(true)` | « Imprimer » crée le PDF dans la page et l'envoie par `REPORT_PDF` (la WebView Android ignore `window.print()`) |
+| `setDegatsRapport([ids])` | dégâts à imprimer (`null` = tous) ; sinon l'utilisateur coche dans « Dégâts à imprimer » |
+| `creerPdfRapport()` | promesse `{pages, base64}` du PDF du rapport (test / diagnostic) |
 
 ## Messages envoyés à WinDev (postMessage, champ `action`)
 
@@ -30,8 +33,13 @@ s'ajoute d'abord dans `lang_fr.js`.
 | `REQUEST_PHOTO` | bouton « + Ajouter une photo » | `damageId`, `carstock`, `job` → WinDev ouvre l'appareil photo, uploade, puis appelle `ajouterPhoto` |
 | `DELETE_PHOTO` | suppression d'une photo | `damageId`, `path` |
 | `VIEW_PHOTO` | clic sur une vignette | `path` |
+| `REPORT_OPENED` | ouverture du rapport (mode WinDev) | `carstock`, `job`, `damageIds` → WinDev appelle `setRapportInfos` et `chargerPhotos` |
+| `REPORT_PDF` | « Imprimer » (mode WinDev) | `id`, `part`, `total`, `name`, `pages`, `damageIds`, `data` (morceau base64 de 200 000 caractères) |
+| `REPORT_PDF_ERROR` | échec de création du PDF | `message` |
 
-La colonne `digital` contient les chemins des photos d'un dégât, séparés par des virgules.
+La colonne `digital` contient les noms des photos d'un dégât, séparés par des virgules (120 caractères
+maximum : WinDev les nomme `D<damage_id>_<jjhhmmss><n>.jpg` et les range sur le serveur d'images dans
+`<CAR_DAMAGE_IMAGES>\J<numberjob sur 9 chiffres>\`).
 
 ## Contrat de véhicule de remplacement imprimable (`report2d.js`, `report2d.css`)
 

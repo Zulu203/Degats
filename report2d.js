@@ -60,6 +60,12 @@ function validDamages(){
   return damages.filter(function(d){ return d && d.damageTypes && d.damageTypes.length; });
 }
 
+/* Dégâts décochés dans « Dégâts à imprimer » (par défaut tout est imprimé) */
+var EXCLUDED = {}; // damageId → true
+function reportDamages(){
+  return validDamages().filter(function(d){ return !EXCLUDED[d.damageId]; });
+}
+
 function currentVehicleLabel(){
   var v = VEHICLES.find(function(x){ return x.id === currentVehicleId; });
   return v ? v.label : currentVehicleId;
@@ -222,24 +228,67 @@ function ensureOverlay(){
     '<div class="report2d-shell">' +
       '<div class="report2d-toolbar">' +
         '<span class="report2d-toolbar-hint" id="report2DHint"></span>' +
+        '<button id="report2DSelectBtn"></button>' +
         '<button id="report2DRefresh"></button>' +
         '<button id="report2DClose"></button>' +
         '<button class="primary" id="report2DPrint"></button>' +
       '</div>' +
+      '<div class="report2d-select" id="report2DSelect"></div>' +
       '<div class="report2d-paper" id="report2DPaper"></div>' +
     '</div>';
   document.body.appendChild(overlay);
   document.getElementById('report2DClose').onclick = close2DReport;
   document.getElementById('report2DRefresh').onclick = refresh2DReport;
   document.getElementById('report2DPrint').onclick = print2DReport;
+  document.getElementById('report2DSelectBtn').onclick = function(){
+    document.getElementById('report2DSelect').classList.toggle('open');
+  };
   return overlay;
 }
 
 function applyToolbarTexts(){
+  var all = validDamages().length, kept = reportDamages().length;
+  document.getElementById('report2DSelectBtn').textContent = tr('reportSelect','Dégâts à imprimer') + ' (' + kept + '/' + all + ')';
   document.getElementById('report2DRefresh').textContent = tr('reportRefresh','Actualiser');
   document.getElementById('report2DClose').textContent = tr('reportClose','Fermer');
   document.getElementById('report2DPrint').textContent = tr('reportPrint','Imprimer');
-  document.getElementById('report2DHint').textContent = tr('reportHint','Aperçu A4 — « Imprimer » ouvre la boîte de dialogue (choisir « Enregistrer en PDF » pour un fichier).');
+  document.getElementById('report2DHint').textContent = window.__printViaWinDev
+    ? tr('reportHintWinDev','Aperçu A4 — cochez les dégâts à imprimer, puis « Imprimer » crée le PDF.')
+    : tr('reportHint','Aperçu A4 — « Imprimer » ouvre la boîte de dialogue (choisir « Enregistrer en PDF » pour un fichier).');
+}
+
+/* Liste à cocher des dégâts à imprimer */
+function renderSelectPanel(){
+  var box = document.getElementById('report2DSelect');
+  if (!box) return;
+  var list = validDamages();
+  var html = '<div class="rs-actions"><button type="button" data-all="1">' + escapeHtml(tr('reportSelectAll','Tous')) + '</button>' +
+    '<button type="button" data-all="0">' + escapeHtml(tr('reportSelectNone','Aucun')) + '</button></div>';
+  html += list.length ? list.map(function(d){
+    var grav = GRAVITIES.find(function(g){return g.id===d.gravity;}) || GRAVITIES[1];
+    var types = d.damageTypes.map(function(tp){return tp.name;}).join(', ');
+    var n = (PHOTOS[d.damageId] || (d.images || [])).length;
+    return '<label class="rs-item"><input type="checkbox" data-id="' + d.damageId + '"' + (EXCLUDED[d.damageId] ? '' : ' checked') + '>' +
+      '<span class="rp-num" style="background:' + grav.color + '">' + escapeHtml(d.damageId) + '</span>' +
+      '<span class="rs-types">' + escapeHtml(types) + '</span>' +
+      (n ? '<span class="rs-ph">📷' + n + '</span>' : '') + '</label>';
+  }).join('') : '<div class="rs-empty">' + escapeHtml(tr('reportNoDamage','Aucun dégât constaté.')) + '</div>';
+  box.innerHTML = html;
+  Array.prototype.forEach.call(box.querySelectorAll('input[data-id]'), function(cb){
+    cb.onchange = function(){
+      var id = +cb.getAttribute('data-id');
+      if (cb.checked) delete EXCLUDED[id]; else EXCLUDED[id] = true;
+      refresh2DReport();
+    };
+  });
+  Array.prototype.forEach.call(box.querySelectorAll('button[data-all]'), function(b){
+    b.onclick = function(){
+      var keep = b.getAttribute('data-all') === '1';
+      EXCLUDED = {};
+      if (!keep) validDamages().forEach(function(d){ EXCLUDED[d.damageId] = true; });
+      refresh2DReport();
+    };
+  });
 }
 
 function formatDate(value){
@@ -425,9 +474,10 @@ var lastTopUrl = '';
 function render2DReport(){
   if (!carGroup || !_modelReady) return false;
   carGroup.updateMatrixWorld(true);
-  var items = validDamages();
+  var items = reportDamages();
   var box = new THREE.Box3().setFromObject(carGroup);
   applyToolbarTexts();
+  renderSelectPanel();
   lastViewStats = [];
   var shots = {};
   VIEW_DEFS.forEach(function(def){
@@ -449,6 +499,13 @@ function open2DReport(){
     return false;
   }
   document.getElementById('report2DOverlay').classList.add('open');
+  // WinDev complète le rapport (garage, client, véhicule) et envoie les photos
+  if (window.__printViaWinDev && typeof envoyerAWinDev === 'function') {
+    envoyerAWinDev(JSON.stringify({
+      action:'REPORT_OPENED', carstock:window.__ctxCarstock, job:window.__ctxJob,
+      damageIds: reportDamages().map(function(d){ return d.damageId; })
+    }));
+  }
   return true;
 }
 
@@ -464,7 +521,131 @@ function refresh2DReport(){
 function print2DReport(){
   var overlay = ensureOverlay();
   if (!overlay.classList.contains('open') && !open2DReport()) return;
+  // Dans WinDev (WebView Android), window.print() ne fait rien : on crée le PDF ici
+  // et WinDev l'enregistre puis l'ouvre pour l'imprimer.
+  if (window.__printViaWinDev) { exportPdfToWinDev(); return; }
   setTimeout(function(){ window.print(); },120);
+}
+
+/* ------------------------------------------------------------------
+   PDF du rapport (html2canvas + jsPDF, chargés à la demande)
+   ------------------------------------------------------------------ */
+var PDF_LIBS = [
+  'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+];
+var PDF_MARGIN_X = 12, PDF_MARGIN_Y = 10;           // mm
+var PDF_CHUNK = 200000;                              // caractères base64 par message
+var pdfBusy = false;
+
+function loadScript(url){
+  return new Promise(function(resolve, reject){
+    var s = document.createElement('script');
+    s.src = url; s.async = true;
+    s.onload = resolve;
+    s.onerror = function(){ reject(new Error('Chargement impossible : ' + url)); };
+    document.head.appendChild(s);
+  });
+}
+function ensurePdfLibs(){
+  if (window.html2canvas && window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
+  return PDF_LIBS.reduce(function(p, url){ return p.then(function(){ return loadScript(url); }); }, Promise.resolve());
+}
+
+/* Hauteurs (px du canvas) où l'on peut couper une page sans couper une ligne / une photo */
+function breakPoints(el, scale){
+  var top = el.getBoundingClientRect().top, pts = [];
+  Array.prototype.forEach.call(el.querySelectorAll('tr,figure,h2,h3,li,p,table,.rp-views,.rp-legend,.rp-photos'), function(n){
+    var r = n.getBoundingClientRect();
+    if (r.height > 0) pts.push(Math.round((r.bottom - top) * scale));
+  });
+  return pts.sort(function(a,b){ return a-b; });
+}
+
+function addBlockToPdf(pdf, el, state){
+  return window.html2canvas(el, {scale:2, backgroundColor:'#ffffff', useCORS:true, logging:false}).then(function(canvas){
+    var pageW = 210 - 2*PDF_MARGIN_X, pageH = 297 - 2*PDF_MARGIN_Y;
+    var pxPerMm = canvas.width / pageW;
+    var pageHpx = Math.floor(pageH * pxPerMm);
+    var pts = breakPoints(el, canvas.width / el.getBoundingClientRect().width);
+    var y = 0;
+    while (y < canvas.height - 2) {
+      var end = Math.min(canvas.height, y + pageHpx);
+      if (end < canvas.height) {
+        var best = 0;
+        pts.forEach(function(p){ if (p > y + pageHpx*0.4 && p <= end) best = p; });
+        if (best) end = best;
+      }
+      var slice = document.createElement('canvas');
+      slice.width = canvas.width; slice.height = end - y;
+      var ctx = slice.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, slice.width, slice.height);
+      ctx.drawImage(canvas, 0, y, canvas.width, end - y, 0, 0, canvas.width, end - y);
+      if (state.pages > 0) pdf.addPage();
+      pdf.addImage(slice.toDataURL('image/jpeg', 0.85), 'JPEG', PDF_MARGIN_X, PDF_MARGIN_Y, pageW, (end - y) / pxPerMm);
+      state.pages++;
+      y = end;
+    }
+  });
+}
+
+/* Construit le PDF des blocs du rapport (contrat, annexe). Renvoie une promesse {pdf, pages}. */
+function buildReportPdf(){
+  return ensurePdfLibs().then(function(){
+    var paper = document.getElementById('report2DPaper');
+    paper.classList.add('pdf-export');
+    var blocks = Array.prototype.slice.call(paper.children);
+    var pdf = new window.jspdf.jsPDF({unit:'mm', format:'a4', orientation:'portrait', compress:true});
+    var state = {pages:0};
+    var chain = blocks.reduce(function(p, el){ return p.then(function(){ return addBlockToPdf(pdf, el, state); }); }, Promise.resolve());
+    return chain.then(function(){
+      paper.classList.remove('pdf-export');
+      return {pdf:pdf, pages:state.pages};
+    }, function(e){
+      paper.classList.remove('pdf-export');
+      throw e;
+    });
+  });
+}
+
+function pdfFileName(){
+  var d = new Date(), pad = function(n){ return (n < 10 ? '0' : '') + n; };
+  return 'Degats_' + (window.__ctxJob || 'OR') + '_' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '_' + pad(d.getHours()) + pad(d.getMinutes()) + '.pdf';
+}
+
+/* Envoie le PDF à WinDev en morceaux (postMessage) : REPORT_PDF {id, part, total, name, data} */
+function sendPdfToWinDev(b64, name, pages){
+  var id = String(Date.now()), total = Math.max(1, Math.ceil(b64.length / PDF_CHUNK));
+  for (var i = 0; i < total; i++) {
+    envoyerAWinDev(JSON.stringify({
+      action:'REPORT_PDF', id:id, part:i+1, total:total, name:name, pages:pages,
+      carstock:window.__ctxCarstock, job:window.__ctxJob,
+      damageIds: reportDamages().map(function(d){ return d.damageId; }),
+      data: b64.substr(i * PDF_CHUNK, PDF_CHUNK)
+    }));
+  }
+  return total;
+}
+
+function exportPdfToWinDev(){
+  if (pdfBusy) return;
+  pdfBusy = true;
+  var btn = document.getElementById('report2DPrint');
+  var hint = document.getElementById('report2DHint');
+  if (btn) btn.disabled = true;
+  if (hint) hint.textContent = tr('reportPdfBusy','Préparation du PDF…');
+  buildReportPdf().then(function(res){
+    var b64 = res.pdf.output('datauristring').split(',')[1] || '';
+    sendPdfToWinDev(b64, pdfFileName(), res.pages);
+    if (hint) hint.textContent = tr('reportPdfSent','PDF envoyé à la tablette.');
+  }).catch(function(e){
+    console.error('PDF', e);
+    if (hint) hint.textContent = tr('reportPdfError','Le PDF n’a pas pu être créé.');
+    envoyerAWinDev(JSON.stringify({action:'REPORT_PDF_ERROR', message:String(e && e.message || e)}));
+  }).then(function(){
+    pdfBusy = false;
+    if (btn) btn.disabled = false;
+  });
 }
 
 /* ------------------------------------------------------------------
@@ -528,6 +709,23 @@ window.refresh2DReport = refresh2DReport;
 window.print2DReport = print2DReport;
 window.ouvrirRapport = open2DReport;
 window.imprimerRapport = print2DReport;
+/* WinDev appelle setImpressionWinDev(true) après HTML_READY : « Imprimer » crée alors le PDF
+   et l'envoie par REPORT_PDF au lieu d'appeler window.print() (sans effet dans la WebView Android). */
+window.setImpressionWinDev = function(on){ window.__printViaWinDev = !!on; return 'OK'; };
+/* Sélection des dégâts du rapport depuis WinDev : setDegatsRapport([3,5]) ; setDegatsRapport(null) = tous */
+window.setDegatsRapport = function(ids){
+  EXCLUDED = {};
+  if (ids && ids.length) {
+    var keep = {}; ids.forEach(function(id){ keep[+id] = true; });
+    validDamages().forEach(function(d){ if (!keep[d.damageId]) EXCLUDED[d.damageId] = true; });
+  }
+  var overlay = document.getElementById('report2DOverlay');
+  if (overlay && overlay.classList.contains('open')) render2DReport();
+  return 'OK';
+};
+window.creerPdfRapport = function(){
+  return buildReportPdf().then(function(res){ return {pages:res.pages, base64:res.pdf.output('datauristring').split(',')[1]}; });
+};
 window.get2DReportPayload = function(){
   return {
     version: window.__version,
@@ -537,6 +735,7 @@ window.get2DReportPayload = function(){
     vehicleId: currentVehicleId,
     infos: INFO,
     damages: validDamages().map(damageToRow),
+    selected: reportDamages().map(function(d){ return d.damageId; }),
     photos: Object.keys(PHOTOS).map(function(id){ return {damage_id:+id, count:PHOTOS[id].length}; })
   };
 };

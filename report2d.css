@@ -129,3 +129,23 @@
   .rp-num,.rp-dot,.rp-view img,.rp-state-img,.rp-photo img{-webkit-print-color-adjust:exact; print-color-adjust:exact;}
   .rp-annex{margin-top:0!important;}
 }
+
+/* ---------- choix des dégâts à imprimer ---------- */
+.report2d-select{display:none; background:#fff; border:1px solid #c9d1dc; border-radius:6px; padding:8px 10px; margin:0 0 12px; font-size:13px; color:#1b2430;}
+.report2d-select.open{display:block;}
+.report2d-select .rs-actions{display:flex; gap:8px; margin-bottom:6px;}
+.report2d-select .rs-actions button{padding:6px 12px; border:1px solid #c9d1dc; border-radius:6px; background:#f5f7fa; font-size:12px; cursor:pointer;}
+.report2d-select .rs-item{display:flex; align-items:center; gap:8px; padding:7px 2px; border-top:1px solid #eef1f5; cursor:pointer;}
+.report2d-select .rs-item input{width:20px; height:20px; margin:0;}
+.report2d-select .rs-types{flex:1;}
+.report2d-select .rs-ph{color:#6b7684; font-size:12px;}
+.report2d-select .rs-empty{color:#6b7684; padding:6px 2px;}
+.report2d-toolbar button:disabled{opacity:.55; cursor:wait;}
+
+/* ---------- export PDF : largeur A4 réelle, sans ombre ---------- */
+.report2d-paper.pdf-export{width:210mm; max-width:none; box-shadow:none; padding:0 12mm; min-height:0; box-sizing:border-box;}
+.report2d-paper.pdf-export .rp-annex{margin-top:0;}
+
+@media print{
+  .report2d-select{display:none!important;}
+}
