@@ -23,6 +23,7 @@ var LANG_DATA = {
   msgLoaded:      '%n dégât(s) chargé(s)',
   titlePopup:     'Dégât #',
   hint:           'Clic sur la carrosserie = poser un dégât · glisser = pivoter · molette = zoom',
+  waitDamages:    'Chargement des dégâts existants… patientez',
   loading:        'Initialisation…',
   loadingModel:   'Chargement ',
   waitModel:      'En attente du modèle depuis WinDev…',

@@ -21,6 +21,7 @@ var LANG_DATA = {
   msgLoaded:      '%n damage(s) loaded',
   titlePopup:     'Damage #',
   hint:           'Click body = place damage · drag = rotate · scroll = zoom',
+  waitDamages:    'Loading existing damage… please wait',
   loading:        'Initializing…',
   loadingModel:   'Loading ',
   waitModel:      'Waiting for model from WinDev…',

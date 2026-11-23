@@ -24,11 +24,21 @@ s'ajoute d'abord dans `lang_fr.js`.
 | `setDegatsRapport([ids])` | dégâts à imprimer (`null` = tous) ; sinon l'utilisateur coche dans « Dégâts à imprimer » |
 | `creerPdfRapport()` | promesse `{pages, base64}` du PDF du rapport (test / diagnostic) |
 
-## Messages envoyés à WinDev (postMessage, champ `action`)
+## Messages envoyés à WinDev (champ `action`)
+
+Sur tablette (WinDev Mobile Android / iOS), `postMessage` reste dans la page et n'arrive jamais à WinDev.
+L'appli charge donc la page avec `?bridge=wl` : chaque message est alors envoyé par
+`WL.Execute("OnPageMessage", json)`, qui appelle la procédure locale `OnPageMessage` de la fenêtre.
+Sans `bridge=wl` (anciennes applis, navigateur), la page garde `postMessage` + presse-papier.
+
+En mode `bridge=wl`, la page répète `HTML_READY` tant que WinDev n'a pas appelé `chargerDommages`
+et refuse la pose d'un dégât avant ce chargement. Les autres véhicules sont verrouillés dès qu'un
+modèle est mémorisé (`[M:x]`) ou qu'un dégât est posé.
 
 | Action | Quand | Contenu |
 |---|---|---|
 | `HTML_READY` | page chargée | `version` |
+| `DAMAGES_LOADED` | `chargerDommages` appliqué | `carstock`, `job`, `count` → WinDev autorise la sauvegarde |
 | `GET_DAMAGES_RESPONSE` | sauvegarde | `carstock`, `job`, `count`, `damages` (JSON), `deleted` (JSON) |
 | `REQUEST_PHOTO` | bouton « + Ajouter une photo » | `damageId`, `carstock`, `job` → WinDev ouvre l'appareil photo, uploade, puis appelle `ajouterPhoto` |
 | `DELETE_PHOTO` | suppression d'une photo | `damageId`, `path` |

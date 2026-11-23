@@ -21,6 +21,7 @@ var LANG_DATA = {
   msgLoaded:      '%n schade(s) geladen',
   titlePopup:     'Schade #',
   hint:           'Klik op carrosserie = schade plaatsen · slepen = draaien · scroll = zoom',
+  waitDamages:    'Bestaande schade wordt geladen… even geduld',
   loading:        'Initialisatie…',
   loadingModel:   'Laden ',
   waitModel:      'Wachten op model van WinDev…',

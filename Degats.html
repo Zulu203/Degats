@@ -18,6 +18,7 @@
   #loader{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:12px; background:var(--bg); z-index:20;}
   .spinner{width:34px; height:34px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite;}
   @keyframes spin{to{transform:rotate(360deg);}}
+  #hint.warn{color:#b3261e; border-color:#b3261e; font-weight:600;}
   #hint{position:absolute; top:12px; left:12px; font-size:12px; color:var(--muted); background:var(--panel); padding:5px 12px; border-radius:8px; border:1px solid var(--border); z-index:10;}
   #side{width:280px; background:var(--panel); border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden;}
 
@@ -214,6 +215,8 @@ const VEHICLES = [
 
 let damages = [];
 let currentVehicleId = VEHICLES[0].id;
+let _wantedVehicleId = VEHICLES[0].id;   // dernier véhicule demandé (chargement en cours ou terminé)
+let _loadSeq = 0;                        // n° du dernier chargement lancé : les plus anciens sont ignorés
 let editingIndex = null;
 let draftTypes = [], draftGravity = 2;
 
@@ -292,9 +295,13 @@ function parseGLB(buffer, id, label){
 
 function loadVehicleFromFile(id){
   const v = VEHICLES.find(x=>x.id===id);
+  const seq = ++_loadSeq;
+  _wantedVehicleId = id;
   showLoader(t('loadingModel')+v.label+'…');
-  gltfLoader.load(v.file, gltf=>applyGltf(gltf,id), undefined,
-    err=>{ showLoader(t('errLoad')); console.error(err); });
+  gltfLoader.load(v.file,
+    gltf=>{ if(seq!==_loadSeq){ console.log('[LOAD] '+id+' ignoré (chargement dépassé)'); return; } applyGltf(gltf,id); },
+    undefined,
+    err=>{ if(seq!==_loadSeq) return; showLoader(t('errLoad')); console.error(err); });
 }
 
 function loadPlaceholder(){
@@ -309,6 +316,7 @@ function loadPlaceholder(){
 
 function requestVehicle(id){
   _modelReady = false;
+  _wantedVehicleId = id;
   if(FILE_MODE){
     if(typeof window.__onVehiclePick==='function') window.__onVehiclePick(id);
   } else {
@@ -327,6 +335,7 @@ renderer.domElement.addEventListener('pointerup', e=>{
   downPos=null;
   if(moved>5) return;
   if(!carGroup) return;
+  if(inWinDev() && !window.__loaded){ flashHint(t('waitDamages')); return; }
   const rect = renderer.domElement.getBoundingClientRect();
   mouse.x = ((e.clientX-rect.left)/rect.width)*2-1;
   mouse.y = -((e.clientY-rect.top)/rect.height)*2+1;
@@ -526,16 +535,18 @@ function renderDmgList(){
     row.appendChild(del);
     box.appendChild(row);
   });
+  if(typeof renderThumbs==='function') renderThumbs();
 }
 function renderThumbs(){
   const box=document.getElementById('thumbs'); box.innerHTML='';
   VEHICLES.forEach(v=>{
     const el=document.createElement('div');
     var isActive = v.id===currentVehicleId;
-    var isLocked = window.__ctxModel > 0 && v.id !== currentVehicleId;
+    var hasDamages = damages.some(function(d){ return d.damageTypes.length; });
+    var isLocked = (window.__ctxModel > 0 || hasDamages) && v.id !== _wantedVehicleId;
     el.className='thumb'+(isActive?' active':'')+(isLocked?' locked':'');
     el.innerHTML='<span class="ic">🚗</span>'+v.label;
-    el.onclick=()=>{ if(!isLocked && v.id!==currentVehicleId) requestVehicle(v.id); };
+    el.onclick=()=>{ if(!isLocked && v.id!==_wantedVehicleId) requestVehicle(v.id); };
     box.appendChild(el);
   });
 }
@@ -620,6 +631,7 @@ window.initDamageTypes = function(json){
 };
 
 window.chargerDommages = function(json){
+  window.__loadAsked = true;
   if(!_modelReady){ _pendingLoad = json; console.log('[chargerDommages] modèle pas prêt, mis en attente'); return 'PENDING'; }
   try{
     let arr = json;
@@ -632,6 +644,8 @@ window.chargerDommages = function(json){
     (arr||[]).forEach(o => { const d = rowToDamage(o); damages.push(d); addMarker(d); });
     renderDmgList();
     console.log('[chargerDommages] '+damages.length+' dégât(s) affiché(s)');
+    window.__loaded = true;
+    envoyerAWinDev(JSON.stringify({ action:'DAMAGES_LOADED', carstock:window.__ctxCarstock, job:window.__ctxJob, count:damages.length }));
     return 'OK:'+damages.length;
   }catch(e){ console.error('chargerDommages',e); return 'ERR:'+e.message; }
 };
@@ -646,12 +660,31 @@ window.__ctxCarstock = 0;
 window.__ctxJob      = 0;
 window.__ctxModel    = 0;
 window.__deleted     = [];
+window.__loaded      = false;   // dégâts existants chargés par WinDev pour ce véhicule / OR
+window.__loadAsked   = false;   // chargerDommages reçu (même en attente du modèle 3D)
+
+/* Pont WL.Execute : demandé par l'appli avec ?bridge=wl (les anciennes applis, sans la procédure
+   OnPageMessage, gardent l'ancien comportement), dans un champ HTML WinDev Mobile où l'objet WL est injecté */
+var _bridgeWL = /[?&]bridge=wl(&|$)/.test(location.search);
+function inWinDev(){
+  try { return _bridgeWL && !!(window.WL && typeof window.WL.Execute === 'function'); } catch (e) { return false; }
+}
+function flashHint(txt){
+  var h = document.getElementById('hint'); if(!h) return;
+  h.textContent = txt; h.classList.add('warn');
+  clearTimeout(flashHint._t);
+  flashHint._t = setTimeout(function(){ h.textContent = t('hint'); h.classList.remove('warn'); }, 2500);
+}
 
 /* setContexte avec 3 paramètres : carstock, job, vehicleModel */
 window.setContexte = function (carstock, job, vehicleModel) {
-  window.__ctxCarstock = parseInt(carstock, 10) || 0;
-  window.__ctxJob      = parseInt(job, 10)      || 0;
-  window.__ctxModel    = parseInt(vehicleModel, 10) || 0;
+  var newCarstock = parseInt(carstock, 10) || 0, newJob = parseInt(job, 10) || 0;
+  if (newCarstock !== window.__ctxCarstock || newJob !== window.__ctxJob) {
+    window.__loaded = false; window.__loadAsked = false;   // autre véhicule / OR : dégâts à recharger
+  }
+  window.__ctxCarstock = newCarstock;
+  window.__ctxJob      = newJob;
+  if (arguments.length >= 3) window.__ctxModel = parseInt(vehicleModel, 10) || 0;   // setContexte(c, j) garde le verrou
   console.log('[CTX] carstock=' + window.__ctxCarstock + ' job=' + window.__ctxJob + ' model=' + window.__ctxModel);
 
   // Si un modèle est défini → charger le bon véhicule et verrouiller
@@ -663,11 +696,11 @@ window.setContexte = function (carstock, job, vehicleModel) {
         vehicle = VEHICLES[window.__ctxModel - 1];
       }
     }
-    if (vehicle && vehicle.id !== currentVehicleId) {
+    if (vehicle && vehicle.id !== _wantedVehicleId) {
       requestVehicle(vehicle.id);
     }
-    renderThumbs();
   }
+  renderThumbs();
 
   return 'CTX:' + window.__ctxCarstock + '/' + window.__ctxJob + '/M' + window.__ctxModel;
 };
@@ -697,6 +730,7 @@ function construireMessage(action) {
     carstock: window.__ctxCarstock,
     job:      window.__ctxJob,
     count:    rows.length,
+    loaded:   !!window.__loaded,
     damages:  JSON.stringify(rows),
     deleted:  JSON.stringify(window.__deleted || [])
   });
@@ -728,6 +762,11 @@ function ecrirePressePapier(txt) {
 
 function envoyerAWinDev(msg) {
   var envoye = false;
+  // WinDev Mobile (Android / iOS) : WL.Execute appelle la procédure locale OnPageMessage de la fenêtre.
+  // C'est le seul canal qui arrive réellement à WinDev sur tablette (postMessage reste dans la page).
+  try { if (inWinDev()) { window.WL.Execute('OnPageMessage', String(msg)); envoye = true; } }
+  catch (e) { console.warn('[BRIDGE] WL.Execute KO', e); }
+  if (envoye) return true;
   try { window.parent.postMessage(msg, '*'); envoye = true; } catch (e) {}
   try { if (window.parent !== window) window.postMessage(msg, '*'); } catch (e) {}
   try { if (window.WinDev && window.WinDev.postMessage) { window.WinDev.postMessage(msg); envoye = true; } } catch (e) {}
@@ -773,19 +812,27 @@ window.__bridgeDiag = function () {
     chargerDommages: typeof window.chargerDommages,
     initDamageTypes: typeof window.initDamageTypes,
     parentDifferent: window.parent !== window,
+    wlExecute: inWinDev(),
+    loaded: window.__loaded, loadAsked: window.__loadAsked,
+    wanted: _wantedVehicleId, current: currentVehicleId,
     execCommand: typeof document.execCommand
   };
 };
 
 /* Annonce à WinDev que la page est prête */
+var _readyTries = 0;
 function annoncerPret() {
   envoyerAWinDev(JSON.stringify({ action: 'HTML_READY', version: window.__version }));
+  // WinDev répond par chargerDommages ; tant qu'il ne l'a pas fait, on redemande (10 essais)
+  if (inWinDev() && _readyTries++ < 10) {
+    setTimeout(function(){ if (!window.__loadAsked) annoncerPret(); }, 4000);
+  }
 }
 if (document.readyState === 'complete') { setTimeout(annoncerPret, 300); }
 else { window.addEventListener('load', function () { setTimeout(annoncerPret, 300); }); }
 
 window.__READY = true;
-window.__version = "v20";
+window.__version = "v21";
 
 window.addEventListener('DOMContentLoaded', function() {
   applyI18n();
