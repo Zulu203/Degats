@@ -45,6 +45,8 @@
   .actions{padding:12px 16px; border-top:1px solid var(--border); display:flex; gap:8px;}
   button.btn{flex:1; padding:9px; font-size:13px; border:1px solid var(--border); border-radius:8px; background:var(--panel); cursor:pointer;}
   button.btn:hover{background:var(--bg);}
+  #dirtyBadge{font-size:11px; font-weight:700; color:#fff; background:#b3261e; border-radius:999px; padding:2px 8px; margin-left:6px; vertical-align:middle;}
+  #dirtyBadge.saving{background:#b7791f;}
   button.btn.primary{background:var(--accent); color:#fff; border-color:var(--accent);}
   #popup{position:absolute; z-index:30; width:188px; background:var(--panel); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.18); display:none; overflow:hidden;}
   #popup .ph{padding:6px 10px; border-bottom:1px solid var(--border); font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:space-between;}
@@ -100,13 +102,13 @@
       <div class="thumbs" id="thumbs"></div>
     </div>
     <div class="sec" style="flex:1; display:flex; flex-direction:column; padding-bottom:0;">
-      <h3><span id="lblDamages"></span> (<span id="cnt">0</span>)</h3>
+      <h3><span id="lblDamages"></span> (<span id="cnt">0</span>) <span id="dirtyBadge" hidden></span></h3>
       <div id="dmgList"></div>
     </div>
     <div class="actions">
       <button class="btn" id="btnClearAll" onclick="clearAll()"></button>
       <button class="btn" id="btnReport2D" onclick="open2DReport()"></button>
-      <button class="btn primary" onclick="exportJSON()">JSON</button>
+      <button class="btn primary" id="btnSave" onclick="boutonEnregistrer()">JSON</button>
     </div>
   </div>
 </div>
@@ -177,6 +179,7 @@ function applyI18n() {
   document.getElementById('lblGravity').textContent = t('lblGravity');
   document.getElementById('lblNote').textContent = t('lblNote');
   document.getElementById('btnClearAll').textContent = t('btnClearAll');
+  if (typeof libelleBoutonEnregistrer === 'function') libelleBoutonEnregistrer();
   document.getElementById('btnPopupCancel').textContent = t('btnCancel');
   document.getElementById('btnPopupOk').textContent = t('btnOk');
   document.getElementById('memo').placeholder = t('memoPlaceholder');
@@ -466,6 +469,7 @@ function removePhoto(path){
   if(!d) return;
   if(!confirm(t('confirmDeletePhoto'))) return;
   d.images = (d.images||[]).filter(function(im){ return im.path!==path; });
+  setDirty(true);
   renderPhotoRow();
   renderDmgList();
   envoyerAWinDev(JSON.stringify({ action:'DELETE_PHOTO', damageId:d.damageId, path:path }));
@@ -479,6 +483,7 @@ window.ajouterPhoto = function(damageId, path){
   if(!d || !path) return 'ERR:not_found';
   d.images = d.images || [];
   d.images.push({path:path});
+  setDirty(true);
   if(editingIndex!==null && damages[editingIndex]===d) renderPhotoRow();
   renderDmgList();
   return 'OK';
@@ -488,6 +493,7 @@ function confirmPopup(){
   if(draftTypes.length===0){ alert(t('noType')); return; }
   d.damageTypes = draftTypes.map(id=>{const tp=DAMAGE_TYPES.find(x=>x.id===id); return {id:tp.id,name:tp.name,icon:tp.icon};});
   d.gravity = draftGravity;
+  setDirty(true);
   var userText = document.getElementById('memo').value;
   // tag [M:X] seulement sur le premier dégât (damage_id le plus bas)
   if (d.damageId === getFirstDamageId()) {
@@ -531,7 +537,7 @@ function renderDmgList(){
     const del=document.createElement('span'); del.className='del'; del.textContent='✕';
     del.onclick=(e)=>{ e.stopPropagation();
       if(d.damageId>0 && window.__deleted) window.__deleted.push(d.damageId);
-      markerGroup.remove(d._marker); damages.splice(i,1); renderDmgList(); };
+      markerGroup.remove(d._marker); damages.splice(i,1); setDirty(true); renderDmgList(); };
     row.appendChild(del);
     box.appendChild(row);
   });
@@ -554,6 +560,7 @@ function clearAll(silent){
   if(!silent && damages.filter(d=>d.damageTypes.length).length && !confirm(t('confirmDelete'))) return;
   if(!silent && window.__deleted){
     damages.forEach(d=>{ if(d.damageId>0) window.__deleted.push(d.damageId); });
+    if(damages.some(d=>d.damageTypes.length)) setDirty(true);
   }
   damages=[]; while(markerGroup.children.length) markerGroup.remove(markerGroup.children[0]);
   renderDmgList();
@@ -645,6 +652,8 @@ window.chargerDommages = function(json){
     renderDmgList();
     console.log('[chargerDommages] '+damages.length+' dégât(s) affiché(s)');
     window.__loaded = true;
+    window.__saving = false;
+    setDirty(false, true);
     envoyerAWinDev(JSON.stringify({ action:'DAMAGES_LOADED', carstock:window.__ctxCarstock, job:window.__ctxJob, count:damages.length }));
     return 'OK:'+damages.length;
   }catch(e){ console.error('chargerDommages',e); return 'ERR:'+e.message; }
@@ -662,6 +671,45 @@ window.__ctxModel    = 0;
 window.__deleted     = [];
 window.__loaded      = false;   // dégâts existants chargés par WinDev pour ce véhicule / OR
 window.__loadAsked   = false;   // chargerDommages reçu (même en attente du modèle 3D)
+
+/* ---- Modifications non enregistrées ----
+   __dirty passe à true à chaque changement (dégât ajouté / modifié / supprimé, photo) et
+   revient à false quand WinDev recharge les dégâts après un enregistrement réussi.
+   WinDev reçoit DIRTY pour demander « Vous n'avez pas enregistré » à la sortie. */
+window.__dirty  = false;
+window.__saving = false;
+function setDirty(v, force){
+  v = !!v;
+  if (v === window.__dirty && !force) return;
+  window.__dirty = v;
+  renderDirty();
+  envoyerAWinDev(JSON.stringify({ action:'DIRTY', dirty:v, carstock:window.__ctxCarstock, job:window.__ctxJob }));
+}
+function renderDirty(){
+  var b = document.getElementById('dirtyBadge'); if (!b) return;
+  b.hidden = !window.__dirty && !window.__saving;
+  b.className = window.__saving ? 'saving' : '';
+  b.textContent = window.__saving ? t('saving') : t('notSaved');
+}
+window.estModifie = function(){ return !!window.__dirty; };
+window.marquerEnregistre = function(){ window.__saving = false; setDirty(false, true); return 'OK'; };
+window.finEnregistrement = function(){ window.__saving = false; renderDirty(); return 'OK'; };
+
+/* Bouton principal : « Enregistrer » dans WinDev (un seul geste, plus besoin de JSON),
+   « JSON » (copie presse-papier) dans un navigateur */
+function boutonEnregistrer(){
+  if (!inWinDev()) { exportJSON(); return; }
+  if (!window.__loaded) { flashHint(t('waitDamages')); return; }
+  if (window.__saving) return;
+  window.__saving = true; renderDirty();
+  envoyerAWinDev(construireMessage('GET_DAMAGES_RESPONSE', 'page'));
+  setTimeout(function(){ if (window.__saving) { window.__saving = false; renderDirty(); } }, 15000);
+}
+window.boutonEnregistrer = boutonEnregistrer;
+function libelleBoutonEnregistrer(){
+  var b = document.getElementById('btnSave'); if (!b) return;
+  b.textContent = inWinDev() ? t('btnSave') : 'JSON';
+}
 
 /* Pont WL.Execute : demandé par l'appli avec ?bridge=wl (les anciennes applis, sans la procédure
    OnPageMessage, gardent l'ancien comportement), dans un champ HTML WinDev Mobile où l'objet WL est injecté */
@@ -706,7 +754,7 @@ window.setContexte = function (carstock, job, vehicleModel) {
 };
 
 /* Construit le message tamponné */
-function construireMessage(action) {
+function construireMessage(action, origin) {
   var rows = damages.filter(function (d) { return d.damageTypes.length; }).map(damageToRow);
 
   // Déterminer le modèle à tamponner
@@ -731,6 +779,7 @@ function construireMessage(action) {
     job:      window.__ctxJob,
     count:    rows.length,
     loaded:   !!window.__loaded,
+    origin:   origin || 'windev',
     damages:  JSON.stringify(rows),
     deleted:  JSON.stringify(window.__deleted || [])
   });
@@ -813,7 +862,7 @@ window.__bridgeDiag = function () {
     initDamageTypes: typeof window.initDamageTypes,
     parentDifferent: window.parent !== window,
     wlExecute: inWinDev(),
-    loaded: window.__loaded, loadAsked: window.__loadAsked,
+    loaded: window.__loaded, loadAsked: window.__loadAsked, dirty: window.__dirty, saving: window.__saving,
     wanted: _wantedVehicleId, current: currentVehicleId,
     execCommand: typeof document.execCommand
   };
@@ -832,10 +881,12 @@ if (document.readyState === 'complete') { setTimeout(annoncerPret, 300); }
 else { window.addEventListener('load', function () { setTimeout(annoncerPret, 300); }); }
 
 window.__READY = true;
-window.__version = "v21";
+window.__version = "v22";
 
 window.addEventListener('DOMContentLoaded', function() {
   applyI18n();
+  libelleBoutonEnregistrer();
+  renderDirty();
 });
 
 /* ============ BOUCLE ============ */

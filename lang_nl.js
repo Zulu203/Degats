@@ -5,6 +5,9 @@
 var LANG_DATA = {
   btnSave:        'Opslaan',
   btnClearAll:    'Alles wissen',
+  btnSave:        'Opslaan',
+  notSaved:       '● Niet opgeslagen',
+  saving:         'Opslaan…',
   btnCancel:      'Annuleren',
   btnOk:          'Bevestigen',
   lblVehicle:     'Voertuigmodel',

@@ -39,7 +39,8 @@ modèle est mémorisé (`[M:x]`) ou qu'un dégât est posé.
 |---|---|---|
 | `HTML_READY` | page chargée | `version` |
 | `DAMAGES_LOADED` | `chargerDommages` appliqué | `carstock`, `job`, `count` → WinDev autorise la sauvegarde |
-| `GET_DAMAGES_RESPONSE` | sauvegarde | `carstock`, `job`, `count`, `damages` (JSON), `deleted` (JSON) |
+| `DIRTY` | dégât ajouté / modifié / supprimé, photo, ou rechargement | `dirty` (true = modifications non enregistrées) → WinDev demande « Vous n'avez pas enregistré » à la sortie |
+| `GET_DAMAGES_RESPONSE` | sauvegarde (bouton « Enregistrer » de la page en mode `bridge=wl` : `origin: "page"`) | `carstock`, `job`, `count`, `damages` (JSON), `deleted` (JSON) |
 | `REQUEST_PHOTO` | bouton « + Ajouter une photo » | `damageId`, `carstock`, `job` → WinDev ouvre l'appareil photo, uploade, puis appelle `ajouterPhoto` |
 | `DELETE_PHOTO` | suppression d'une photo | `damageId`, `path` |
 | `VIEW_PHOTO` | clic sur une vignette | `path` |

@@ -5,6 +5,9 @@
 var LANG_DATA = {
   btnSave:        'Save',
   btnClearAll:    'Clear all',
+  btnSave:        'Save',
+  notSaved:       '● Not saved',
+  saving:         'Saving…',
   btnCancel:      'Cancel',
   btnOk:          'Confirm',
   lblVehicle:     'Vehicle model',

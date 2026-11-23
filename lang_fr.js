@@ -7,6 +7,9 @@
 var LANG_DATA = {
   btnSave:        'Enregistrer',
   btnClearAll:    'Tout effacer',
+  btnSave:        'Enregistrer',
+  notSaved:       '● Non enregistré',
+  saving:         'Enregistrement…',
   btnCancel:      'Annuler',
   btnOk:          'Valider',
   lblVehicle:     'Modèle de véhicule',
