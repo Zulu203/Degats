@@ -220,9 +220,9 @@ function gravName(id) {
 }
 
 const VEHICLES = [
-  {id:'peugeot308', label:'Berline', file:'berline-c.glb'},
-  {id:'hyundai_tucson', label:'SUV', file:'suv-c.glb'},
-  {id:'volkswagen_van_t6', label:'Van', file:'van-c.glb'}
+  {id:'peugeot308', label:'Berline', file:'berline-c.glb', plates:[{x:0.4727, y:0.1746}, {x:-0.4885, y:0.069}]},
+  {id:'hyundai_tucson', label:'SUV', file:'suv-c.glb', plates:[{x:0.4730, y:0.1784}, {x:-0.4914, y:0.105}]},
+  {id:'volkswagen_van_t6', label:'Van', file:'van-c.glb', plates:[{x:0.4755, y:0.124}, {x:-0.4909, y:0.1105}]}
 ];
 
 let damages = [];
@@ -260,6 +260,63 @@ try {
 scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, envTexture ? 0.35 : 0.9));
 const d1=new THREE.DirectionalLight(0xffffff, envTexture ? 0.9 : 0.8); d1.position.set(5,10,7); scene.add(d1);
 const d2=new THREE.DirectionalLight(0xffffff, envTexture ? 0.25 : 0.4); d2.position.set(-5,4,-6); scene.add(d2);
+
+/* Plaques d'immatriculation Automotive Systems (avant et arrière).
+   Texture dessinée dans la page à partir de logo-automotive-systems.png (33 Ko),
+   posée sur un petit panneau collé au pare-chocs. Elle ne gêne pas la pose des dégâts
+   (le panneau n'est pas dans bodyMeshes). */
+const PLATE_W = 0.112, PLATE_H = 0.024;         // taille dans le repère du modèle (~52 x 11 cm, couvre la plaque d origine)
+let plateMaterial = null;
+const plateLogo = new Image();
+plateLogo.onload = function(){ drawPlateTexture(); };
+plateLogo.onerror = function(){ drawPlateTexture(); };
+plateLogo.src = 'logo-automotive-systems.png';
+function drawPlateTexture(){
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 225;
+  const g = c.getContext('2d');
+  const r = 26;
+  g.fillStyle = '#ffffff';
+  g.beginPath(); g.moveTo(r,0); g.arcTo(1024,0,1024,225,r); g.arcTo(1024,225,0,225,r); g.arcTo(0,225,0,0,r); g.arcTo(0,0,1024,0,r); g.closePath(); g.fill();
+  g.lineWidth = 10; g.strokeStyle = '#2b2f36'; g.stroke();
+  if (plateLogo.complete && plateLogo.naturalWidth) {
+    // recadre le logo sur sa partie non blanche
+    const t = document.createElement('canvas'); t.width = plateLogo.naturalWidth; t.height = plateLogo.naturalHeight;
+    const tg = t.getContext('2d'); tg.drawImage(plateLogo, 0, 0);
+    let x0 = t.width, y0 = t.height, x1 = 0, y1 = 0;
+    try {
+      const d = tg.getImageData(0, 0, t.width, t.height).data;
+      for (let y = 0; y < t.height; y++) for (let x = 0; x < t.width; x++) {
+        const i = (y * t.width + x) * 4;
+        if (d[i+3] > 20 && (d[i] < 235 || d[i+1] < 235 || d[i+2] < 235)) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+      }
+    } catch (e) { x0 = 0; y0 = 0; x1 = t.width - 1; y1 = t.height - 1; }
+    if (x1 <= x0) { x0 = 0; y0 = 0; x1 = t.width - 1; y1 = t.height - 1; }
+    const sw = x1 - x0 + 1, sh = y1 - y0 + 1;
+    const k = Math.min((1024 - 120) / sw, (225 - 50) / sh);
+    const dw = sw * k, dh = sh * k;
+    g.drawImage(t, x0, y0, sw, sh, (1024 - dw) / 2, (225 - dh) / 2, dw, dh);
+  } else {
+    g.fillStyle = '#5f6670'; g.font = 'bold 96px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('automotive systems', 512, 116);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.encoding = THREE.sRGBEncoding;
+  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  if (plateMaterial) { plateMaterial.map.dispose(); plateMaterial.map = tex; plateMaterial.needsUpdate = true; }
+  else plateMaterial = new THREE.MeshStandardMaterial({map:tex, roughness:0.35, metalness:0.0, envMapIntensity:0.5});
+}
+function addPlates(id){
+  const v = VEHICLES.find(function(x){ return x.id === id; });
+  if (!v || !v.plates || !carGroup) return;
+  if (!plateMaterial) drawPlateTexture();
+  v.plates.forEach(function(pl){
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(PLATE_W, PLATE_H), plateMaterial);
+    m.position.set(pl.x, pl.y, 0);
+    m.rotation.y = pl.x > 0 ? Math.PI / 2 : -Math.PI / 2;   // face vers l'arrière (+x) ou l'avant (-x)
+    m.name = 'plate';
+    carGroup.add(m);
+  });
+}
 
 /* Ombre douce sous la voiture (dégradé dessiné dans la page, aucun calcul d'ombre coûteux) */
 let contactShadow = null;
@@ -321,6 +378,7 @@ function applyGltf(gltf, id, label, ready){
     }
   });
   try { makeContactShadow(new THREE.Box3().setFromObject(carGroup)); } catch(e){ console.warn('[SHADOW]', e); }
+  try { addPlates(id); } catch(e){ console.warn('[PLATES]', e); }
   currentVehicleId = id;
   if(label){ const v=VEHICLES.find(x=>x.id===id); if(v) v.label=label; }
   clearAll(true);
