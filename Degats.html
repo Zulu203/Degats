@@ -142,6 +142,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
 <script>
@@ -219,9 +220,9 @@ function gravName(id) {
 }
 
 const VEHICLES = [
-  {id:'peugeot308', label:'Berline', file:'berline.glb'},
-  {id:'hyundai_tucson', label:'SUV', file:'suv.glb'},
-  {id:'volkswagen_van_t6', label:'Van', file:'van.glb'}
+  {id:'peugeot308', label:'Berline', file:'berline-c.glb'},
+  {id:'hyundai_tucson', label:'SUV', file:'suv-c.glb'},
+  {id:'volkswagen_van_t6', label:'Van', file:'van-c.glb'}
 ];
 
 let damages = [];
@@ -289,6 +290,8 @@ const dracoLoader = new THREE.DRACOLoader();
 dracoLoader.setDecoderPath('https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/draco/');
 const gltfLoader = new THREE.GLTFLoader();
 gltfLoader.setDRACOLoader(dracoLoader);
+/* Modèles compressés avec gltfpack (EXT_meshopt_compression) : 4 Mo au lieu de 24 Mo */
+if (window.MeshoptDecoder) gltfLoader.setMeshoptDecoder(window.MeshoptDecoder);
 
 let carGroup = null;
 let bodyMeshes = [];
