@@ -5,7 +5,7 @@
 #report2DOverlay{
   position:fixed; inset:0; z-index:1000; display:none;
   background:#e9ecf1; color:#000; overflow:auto;
-  font-family:Calibri,Carlito,"Segoe UI",Arial,sans-serif;
+  font-family:Carlito,Calibri,"Segoe UI",Arial,sans-serif;
 }
 #report2DOverlay.open{display:block;}
 .report2d-shell{max-width:230mm; margin:0 auto; padding:18px 16px 40px;}
@@ -54,7 +54,8 @@
 .rp-presumed{font-size:8.5pt; margin-bottom:2px!important;}
 .rp-slist{list-style:none; margin:0; padding:0; font-size:8.5pt;}
 .rp-slist li{display:flex; gap:5px; align-items:center; padding:0.5px 0; break-inside:avoid;}
-.rp-num{display:inline-block; min-width:16px; height:16px; line-height:16px; border-radius:50%; color:#fff; font-weight:700; font-size:8pt; text-align:center; padding:0 3px; flex:none;}
+/* pastille centrée par flex (pas par line-height) : le chiffre reste au milieu dans le PDF quelle que soit la police */
+.rp-num{display:inline-flex; align-items:center; justify-content:center; box-sizing:border-box; min-width:16px; height:16px; line-height:1; border-radius:8px; color:#fff; font-weight:700; font-size:8pt; padding:0 3px; flex:none; vertical-align:middle;}
 .rp-annex-note{font-size:7.5pt; color:#555; font-style:italic; margin-top:2px;}
 .rp-obs{font-size:8.5pt; font-style:italic; margin-top:3px!important;}
 .rp-empty{font-size:8.5pt; font-style:italic;}
@@ -90,7 +91,7 @@
 .rp-view img{display:block; width:100%; aspect-ratio:16/9; object-fit:contain; background:#fff;}
 .rp-view figcaption{font-size:8pt; text-align:center; border-top:1px solid #000; padding:1px 4px;}
 .rp-legend{display:flex; gap:12px; justify-content:flex-end; font-size:8pt; color:#555; margin:3px 0 6px;}
-.rp-dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:0;}
+.rp-dot{display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; vertical-align:middle; position:relative; top:-1px;}
 .rp-table{font-size:8.5pt;}
 .rp-table th,.rp-table td{border:1px solid #000; padding:2px 5px; text-align:left; vertical-align:top;}
 .rp-table th{background:#f2f2f2; font-weight:700; -webkit-print-color-adjust:exact; print-color-adjust:exact;}

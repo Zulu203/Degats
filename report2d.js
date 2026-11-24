@@ -600,8 +600,16 @@ function addBlockToPdf(pdf, el, state){
 }
 
 /* Construit le PDF des blocs du rapport (contrat, annexe). Renvoie une promesse {pdf, pages}. */
+/* Attendre la police du rapport (Carlito) avant la capture, sinon html2canvas prend la police de secours */
+function fontsReady(){
+  if (!document.fonts || !document.fonts.load) return Promise.resolve();
+  var wait = Promise.all([document.fonts.load('400 10pt Carlito'), document.fonts.load('700 10pt Carlito'), document.fonts.load('italic 400 10pt Carlito')])
+    .then(function(){ return document.fonts.ready; });
+  // 4 s maximum : sans Internet, on garde la police de secours plutôt que de bloquer le PDF
+  return Promise.race([wait, new Promise(function(r){ setTimeout(r, 4000); })]).catch(function(){});
+}
 function buildReportPdf(){
-  return ensurePdfLibs().then(function(){
+  return ensurePdfLibs().then(fontsReady).then(function(){
     var paper = document.getElementById('report2DPaper');
     paper.classList.add('pdf-export');
     var blocks = Array.prototype.slice.call(paper.children);
