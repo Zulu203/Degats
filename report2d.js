@@ -478,6 +478,9 @@ function photosHtml(items){
 
 var lastTopUrl = '';
 function render2DReport(){
+  // Pendant la création du PDF, ne pas remplacer le rapport (html2canvas perdrait ses éléments :
+  // « Unable to find element in cloned iframe ») ; on le refait juste après.
+  if (pdfBusy) { _renderPending = true; return true; }
   if (!carGroup || !_modelReady) return false;
   carGroup.updateMatrixWorld(true);
   var items = reportDamages();
@@ -543,6 +546,7 @@ var PDF_LIBS = [
 var PDF_MARGIN_X = 12, PDF_MARGIN_Y = 10;           // mm
 var PDF_CHUNK = 200000;                              // caractères base64 par message
 var pdfBusy = false;
+var _renderPending = false;                          // rapport à redessiner après le PDF (photos/infos arrivées entre-temps)
 
 function loadScript(url){
   return new Promise(function(resolve, reject){
@@ -640,7 +644,20 @@ function exportPdfToWinDev(){
   var hint = document.getElementById('report2DHint');
   if (btn) btn.disabled = true;
   if (hint) hint.textContent = tr('reportPdfBusy','Préparation du PDF…');
-  buildReportPdf().then(function(res){
+  // Si des photos / infos arrivent pendant la capture, on redessine puis on recommence (2 essais de plus au maximum).
+  function build(tries){
+    _renderPending = false;
+    return buildReportPdf().then(function(res){
+      if (!_renderPending || tries <= 0) return res;
+      pdfBusy = false; render2DReport(); pdfBusy = true;
+      return build(tries - 1);
+    }, function(e){
+      if (!_renderPending || tries <= 0) throw e;
+      pdfBusy = false; render2DReport(); pdfBusy = true;
+      return build(tries - 1);
+    });
+  }
+  build(2).then(function(res){
     var b64 = res.pdf.output('datauristring').split(',')[1] || '';
     sendPdfToWinDev(b64, pdfFileName(), res.pages);
     if (hint) hint.textContent = tr('reportPdfSent','PDF envoyé à la tablette.');
@@ -651,6 +668,7 @@ function exportPdfToWinDev(){
   }).then(function(){
     pdfBusy = false;
     if (btn) btn.disabled = false;
+    if (_renderPending) { _renderPending = false; render2DReport(); }
   });
 }
 
