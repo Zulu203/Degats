@@ -144,7 +144,6 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/meshopt_decoder.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
 <script>
 
 /* ============ i18n — FICHIERS EXTERNES ============
@@ -243,23 +242,11 @@ renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.setClearColor(0xeef1f5);
 wrap.appendChild(renderer.domElement);
 
-/* Rendu réaliste : courbe de tons « cinéma » + reflets d'un studio photo calculé dans la page
-   (RoomEnvironment : aucune image à télécharger). Les lumières directes sont réduites car
-   l'environnement éclaire déjà la carrosserie. */
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
-let envTexture = null;
-try {
-  if (THREE.RoomEnvironment && THREE.PMREMGenerator) {
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    envTexture = pmrem.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
-    scene.environment = envTexture;
-    pmrem.dispose();
-  }
-} catch (e) { console.warn('[ENV] environnement indisponible', e); }
-scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, envTexture ? 0.35 : 0.9));
-const d1=new THREE.DirectionalLight(0xffffff, envTexture ? 0.9 : 0.8); d1.position.set(5,10,7); scene.add(d1);
-const d2=new THREE.DirectionalLight(0xffffff, envTexture ? 0.25 : 0.4); d2.position.set(-5,4,-6); scene.add(d2);
+/* Éclairage d'origine (v25) : l'effet « verni » de la v24 (reflets de studio + tons ACES)
+   a été retiré à la demande de l'utilisateur. */
+scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.9));
+const d1=new THREE.DirectionalLight(0xffffff,0.8); d1.position.set(5,10,7); scene.add(d1);
+const d2=new THREE.DirectionalLight(0xffffff,0.4); d2.position.set(-5,4,-6); scene.add(d2);
 
 /* Plaques d'immatriculation Automotive Systems (avant et arrière).
    Texture dessinée dans la page à partir de logo-automotive-systems.png (33 Ko),
@@ -303,7 +290,7 @@ function drawPlateTexture(){
   tex.encoding = THREE.sRGBEncoding;
   tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   if (plateMaterial) { plateMaterial.map.dispose(); plateMaterial.map = tex; plateMaterial.needsUpdate = true; }
-  else plateMaterial = new THREE.MeshStandardMaterial({map:tex, roughness:0.35, metalness:0.0, envMapIntensity:0.5});
+  else plateMaterial = new THREE.MeshStandardMaterial({map:tex, roughness:0.6, metalness:0.0});
 }
 function addPlates(id){
   const v = VEHICLES.find(function(x){ return x.id === id; });
@@ -372,12 +359,6 @@ function applyGltf(gltf, id, label, ready){
   carGroup.position.sub(center.multiplyScalar(scale));
   carGroup.position.y += (size.y*scale)/2;
   scene.add(carGroup);
-  carGroup.traverse(o=>{
-    if(o.isMesh && o.material){
-      (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if('envMapIntensity' in m){ m.envMapIntensity = 1.0; m.needsUpdate = true; } });
-    }
-  });
-  try { makeContactShadow(new THREE.Box3().setFromObject(carGroup)); } catch(e){ console.warn('[SHADOW]', e); }
   try { addPlates(id); } catch(e){ console.warn('[PLATES]', e); }
   currentVehicleId = id;
   if(label){ const v=VEHICLES.find(x=>x.id===id); if(v) v.label=label; }
@@ -1018,7 +999,7 @@ if (document.readyState === 'complete') { setTimeout(annoncerPret, 300); }
 else { window.addEventListener('load', function () { setTimeout(annoncerPret, 300); }); }
 
 window.__READY = true;
-window.__version = "v24";
+window.__version = "v25";
 
 window.addEventListener('DOMContentLoaded', function() {
   applyI18n();
