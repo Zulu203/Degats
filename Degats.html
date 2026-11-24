@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Marquage des dégâts — iReach (WinDev)</title>
-<link rel="stylesheet" href="report2d.css?v=20">
+<link rel="stylesheet" href="report2d.css?v=24">
 <style>
   :root{
     --bg:#f4f5f7; --panel:#ffffff; --border:#e2e4e9; --text:#1c1e21;
@@ -143,6 +143,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/DRACOLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
 <script>
 
 /* ============ i18n — FICHIERS EXTERNES ============
@@ -241,9 +242,45 @@ renderer.outputEncoding = THREE.sRGBEncoding;
   renderer.setClearColor(0xeef1f5);
 wrap.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.9));
-const d1=new THREE.DirectionalLight(0xffffff,0.8); d1.position.set(5,10,7); scene.add(d1);
-const d2=new THREE.DirectionalLight(0xffffff,0.4); d2.position.set(-5,4,-6); scene.add(d2);
+/* Rendu réaliste : courbe de tons « cinéma » + reflets d'un studio photo calculé dans la page
+   (RoomEnvironment : aucune image à télécharger). Les lumières directes sont réduites car
+   l'environnement éclaire déjà la carrosserie. */
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+let envTexture = null;
+try {
+  if (THREE.RoomEnvironment && THREE.PMREMGenerator) {
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    envTexture = pmrem.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+    scene.environment = envTexture;
+    pmrem.dispose();
+  }
+} catch (e) { console.warn('[ENV] environnement indisponible', e); }
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, envTexture ? 0.35 : 0.9));
+const d1=new THREE.DirectionalLight(0xffffff, envTexture ? 0.9 : 0.8); d1.position.set(5,10,7); scene.add(d1);
+const d2=new THREE.DirectionalLight(0xffffff, envTexture ? 0.25 : 0.4); d2.position.set(-5,4,-6); scene.add(d2);
+
+/* Ombre douce sous la voiture (dégradé dessiné dans la page, aucun calcul d'ombre coûteux) */
+let contactShadow = null;
+function makeContactShadow(box){
+  if (contactShadow) { scene.remove(contactShadow); contactShadow.geometry.dispose(); contactShadow.material.map.dispose(); contactShadow.material.dispose(); contactShadow = null; }
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(128,128,10,128,128,128);
+  grd.addColorStop(0, 'rgba(0,0,0,0.55)');
+  grd.addColorStop(0.55, 'rgba(0,0,0,0.28)');
+  grd.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grd; g.fillRect(0,0,256,256);
+  const tex = new THREE.CanvasTexture(c);
+  const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
+  const mat = new THREE.MeshBasicMaterial({map:tex, transparent:true, depthWrite:false, toneMapped:false});
+  contactShadow = new THREE.Mesh(new THREE.PlaneGeometry(size.x*1.25, size.z*1.25), mat);
+  contactShadow.rotation.x = -Math.PI/2;
+  contactShadow.position.set(center.x, box.min.y + 0.003, center.z);
+  contactShadow.renderOrder = -1;
+  contactShadow.userData.noReport = true;
+  scene.add(contactShadow);
+}
 
 const controls = new THREE.OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.08;
@@ -275,6 +312,12 @@ function applyGltf(gltf, id, label, ready){
   carGroup.position.sub(center.multiplyScalar(scale));
   carGroup.position.y += (size.y*scale)/2;
   scene.add(carGroup);
+  carGroup.traverse(o=>{
+    if(o.isMesh && o.material){
+      (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if('envMapIntensity' in m){ m.envMapIntensity = 1.0; m.needsUpdate = true; } });
+    }
+  });
+  try { makeContactShadow(new THREE.Box3().setFromObject(carGroup)); } catch(e){ console.warn('[SHADOW]', e); }
   currentVehicleId = id;
   if(label){ const v=VEHICLES.find(x=>x.id===id); if(v) v.label=label; }
   clearAll(true);
@@ -914,7 +957,7 @@ if (document.readyState === 'complete') { setTimeout(annoncerPret, 300); }
 else { window.addEventListener('load', function () { setTimeout(annoncerPret, 300); }); }
 
 window.__READY = true;
-window.__version = "v23";
+window.__version = "v24";
 
 window.addEventListener('DOMContentLoaded', function() {
   applyI18n();
@@ -941,6 +984,6 @@ if(FILE_MODE){ loadPlaceholder(); }
 else { loadVehicleFromFile(currentVehicleId); }
 animate();
 </script>
-<script src="report2d.js?v=20"></script>
+<script src="report2d.js?v=24"></script>
 </body>
 </html>

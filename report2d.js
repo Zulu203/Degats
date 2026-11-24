@@ -179,7 +179,13 @@ function captureView(def, box, items){
   var camera2D = makeCamera(def,box,REPORT_W/REPORT_H);
   var oldMarkerVisible = markerGroup.visible;
   markerGroup.visible = false;
+  var oldEnv = scene.environment;              // reflets calculés pour l'écran : pas pour le rapport
+  scene.environment = null;
+  var hidden = [];
+  scene.traverse(function(o){ if (o.userData && o.userData.noReport && o.visible) { o.visible = false; hidden.push(o); } });
   off.render(scene,camera2D);
+  hidden.forEach(function(o){ o.visible = true; });
+  scene.environment = oldEnv;
   markerGroup.visible = oldMarkerVisible;
 
   var canvas = document.createElement('canvas');
