@@ -48,10 +48,11 @@
   #dirtyBadge{font-size:11px; font-weight:700; color:#fff; background:#b3261e; border-radius:999px; padding:2px 8px; margin-left:6px; vertical-align:middle;}
   #dirtyBadge.saving{background:#b7791f;}
   button.btn.primary{background:var(--accent); color:#fff; border-color:var(--accent);}
-  #popup{position:absolute; z-index:30; width:188px; background:var(--panel); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.18); display:none; overflow:hidden;}
+  #popup{position:absolute; z-index:30; width:300px; max-width:calc(100% - 16px); flex-direction:column; background:var(--panel); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.18); display:none; overflow:hidden;}
   #popup .ph{padding:6px 10px; border-bottom:1px solid var(--border); font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:space-between;}
   #popup .ph .x{cursor:pointer; color:var(--muted); font-size:16px;}
-  #popup .pb{padding:8px 10px; max-height:260px; overflow:auto;}
+  #popup .pb{padding:8px 10px; max-height:260px; overflow:auto; flex:1 1 auto; min-height:60px;}
+  #popup .pphoto{padding:10px 12px 12px; border-top:1px solid var(--border); background:var(--panel); flex:0 0 auto;}
   .plabel{font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:2px 0 4px; font-weight:600;}
   .typeItem{display:flex; align-items:center; gap:6px; padding:4px 7px; border:1px solid var(--border); border-radius:6px; margin-bottom:3px; font-size:12px; cursor:pointer;}
   .typeItem.on{border-color:var(--accent); background:var(--accent-bg); color:var(--accent);}
@@ -59,15 +60,19 @@
   .gravRow{display:flex; gap:5px; margin-top:2px;}
   .gravBtn{flex:1; padding:4px 0; font-size:11px; text-align:center; border:1px solid var(--border); border-radius:6px; cursor:pointer;}
   .gravBtn.on{color:#fff; font-weight:600; border-color:transparent;}
-  #popup .pf{padding:8px 10px; border-top:1px solid var(--border); display:flex; gap:6px;}
-  #popup .pf button{flex:1; padding:6px; font-size:12px; border-radius:6px; cursor:pointer; border:1px solid var(--border); background:var(--panel);}
+  #popup .pf{padding:10px 12px; border-top:1px solid var(--border); display:flex; gap:12px; flex:0 0 auto;}
+  #popup .pf button{flex:1; min-height:44px; padding:8px; font-size:14px; border-radius:8px; cursor:pointer; border:1px solid var(--border); background:var(--panel);}
   #popup .pf button.ok{background:var(--accent); color:#fff; border-color:var(--accent);}
   textarea#memo{width:100%; border:1px solid var(--border); border-radius:6px; padding:5px 7px; font-size:11px; font-family:inherit; resize:vertical; min-height:28px; margin-top:2px;}
-  .photoRow{display:flex; flex-wrap:wrap; gap:6px; margin-top:2px;}
-  .photoChip{position:relative; width:44px; height:44px; border:1px solid var(--border); border-radius:6px; background:var(--accent-bg); display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer;}
+  .photoRow{display:flex; flex-wrap:wrap; gap:14px; margin-top:4px;}
+  .photoRow:empty{display:none;}
+  .photoItem{display:flex; flex-direction:column; align-items:center; gap:6px; width:64px;}
+  .photoChip{width:64px; height:56px; border:1px solid var(--border); border-radius:8px; background:var(--accent-bg); display:flex; align-items:center; justify-content:center; font-size:24px; cursor:pointer; padding:0;}
   .photoChip.pending{opacity:.5; cursor:default;}
-  .photoChip .rm{position:absolute; top:-6px; right:-6px; width:16px; height:16px; border-radius:50%; background:var(--danger); color:#fff; font-size:10px; line-height:16px; text-align:center; cursor:pointer;}
-  #btnAddPhoto{width:100%; margin-top:6px;}
+  .photoDel{width:64px; min-height:30px; border:1px solid var(--danger); color:var(--danger); background:var(--panel); border-radius:6px; font-size:11px; cursor:pointer; padding:2px;}
+  #btnAddPhoto{display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:52px; margin-top:14px; padding:10px 12px; font-size:15px; font-weight:600; border:2px solid var(--accent); color:var(--accent); background:var(--accent-bg); border-radius:10px; cursor:pointer; touch-action:manipulation;}
+  #btnAddPhoto:disabled{opacity:.45; cursor:default;}
+  #btnAddPhoto:active:not(:disabled){filter:brightness(.92);}
   .dmgRow .ph{color:var(--muted); font-size:11px;}
 </style>
 </head>
@@ -86,9 +91,11 @@
         <div class="gravRow" id="gravRow"></div>
         <div class="plabel" id="lblNote" style="margin-top:8px;"></div>
         <textarea id="memo"></textarea>
-        <div class="plabel" id="lblPhotos" style="margin-top:8px;"></div>
+      </div>
+      <div class="pphoto">
+        <div class="plabel" id="lblPhotos"></div>
         <div class="photoRow" id="photoRow"></div>
-        <button type="button" class="btn" id="btnAddPhoto" onclick="requestPhoto()"></button>
+        <button type="button" id="btnAddPhoto" onclick="requestPhoto()"></button>
       </div>
       <div class="pf">
         <button id="btnPopupCancel" onclick="closePopup(true)"></button>
@@ -397,11 +404,13 @@ function openPopup(index, screenX, screenY){
   document.getElementById('memo').value = stripModelTag(d.memo);
   renderTypeList(); renderGravRow(); renderPhotoRow();
   const pop = document.getElementById('popup');
-  pop.style.display='block';
+  pop.style.display='flex';
+  _popupOpenedAt = Date.now();
   const stage = document.getElementById('stage').getBoundingClientRect();
   const pb = pop.querySelector('.pb');
-  if (pb) pb.style.maxHeight = Math.max(110, stage.height - 96) + 'px';
-  const pw = pop.offsetWidth || 188;
+  pop.style.maxHeight = (stage.height - 16) + 'px';
+  if (pb) pb.style.maxHeight = 'none';
+  const pw = pop.offsetWidth || 300;
   const ph = pop.offsetHeight || 300;
   let x = (screenX!==undefined? screenX-stage.left+14 : (stage.width-pw)/2);
   let y = (screenY!==undefined? screenY-stage.top-10 : 40);
@@ -409,6 +418,13 @@ function openPopup(index, screenX, screenY){
   y = Math.max(8, Math.min(y, stage.height - ph - 8));
   pop.style.left=x+'px'; pop.style.top=y+'px';
 }
+/* Le doigt qui pose un dégât est encore sur l'écran quand la fenêtre s'ouvre : on ignore les clics
+   des 450 premières ms pour qu'il ne touche pas un bouton (photo, type…) par accident. */
+let _popupOpenedAt = 0;
+document.getElementById('popup').addEventListener('click', function(e){
+  if (Date.now() - _popupOpenedAt < 450) { e.stopPropagation(); e.preventDefault(); }
+}, true);
+
 function renderTypeList(){
   const box=document.getElementById('typeList'); box.innerHTML='';
   DAMAGE_TYPES.forEach(tp=>{
@@ -442,22 +458,39 @@ function renderPhotoRow(){
   const d = damages[editingIndex];
   if(!d) return;
   (d.images||[]).forEach(function(im){
-    const el=document.createElement('div');
-    el.className='photoChip'+(im.pending?' pending':'');
-    el.title=im.path||'';
-    el.innerHTML='📷'+(im.pending?'':'<span class="rm">✕</span>');
-    el.onclick=function(e){
-      if(e.target.classList.contains('rm')){ e.stopPropagation(); removePhoto(im.path); return; }
-      if(!im.pending) viewPhoto(im.path);
-    };
-    box.appendChild(el);
+    const item=document.createElement('div');
+    item.className='photoItem';
+    const chip=document.createElement('button');
+    chip.type='button';
+    chip.className='photoChip'+(im.pending?' pending':'');
+    chip.title=im.path||'';
+    chip.textContent='📷';
+    chip.onclick=function(e){ e.stopPropagation(); if(!im.pending) viewPhoto(im.path); };
+    item.appendChild(chip);
+    if(!im.pending){
+      const del=document.createElement('button');
+      del.type='button';
+      del.className='photoDel';
+      del.textContent=t('btnDeletePhoto');
+      del.onclick=function(e){ e.stopPropagation(); removePhoto(im.path); };
+      item.appendChild(del);
+    }
+    box.appendChild(item);
   });
+  const n=(d.images||[]).length;
+  const lbl=document.getElementById('lblPhotos');
+  if(lbl) lbl.textContent = t('lblPhotos') + ' (' + n + '/' + MAX_PHOTOS + ')';
   const btn=document.getElementById('btnAddPhoto');
-  if(btn) btn.disabled = (d.images||[]).length >= MAX_PHOTOS;
+  if(btn) btn.disabled = n >= MAX_PHOTOS || _photoRequestedAt > Date.now() - 2000;
 }
+let _photoRequestedAt = 0;
 function requestPhoto(){
   const d = damages[editingIndex];
   if(!d) return;
+  if (Date.now() - _photoRequestedAt < 2000) return;   // double appui : une seule ouverture de l'appareil photo
+  _photoRequestedAt = Date.now();
+  renderPhotoRow();                      // bouton grisé 2 s
+  setTimeout(renderPhotoRow, 2100);
   if((d.images||[]).length>=MAX_PHOTOS){ alert(t('maxPhotos')); return; }
   envoyerAWinDev(JSON.stringify({
     action:'REQUEST_PHOTO', damageId:d.damageId,
@@ -881,7 +914,7 @@ if (document.readyState === 'complete') { setTimeout(annoncerPret, 300); }
 else { window.addEventListener('load', function () { setTimeout(annoncerPret, 300); }); }
 
 window.__READY = true;
-window.__version = "v22";
+window.__version = "v23";
 
 window.addEventListener('DOMContentLoaded', function() {
   applyI18n();
