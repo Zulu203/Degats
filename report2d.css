@@ -150,3 +150,25 @@
 @media print{
   .report2d-select{display:none!important;}
 }
+
+/* ---------- modèle Word (modeles/*.docx) ---------- */
+.report2d-paper.rp-word{background:transparent; box-shadow:none; padding:0; min-height:0;}
+.report2d-paper.rp-word .docx-wrapper{background:transparent; padding:0; display:flex; flex-direction:column; align-items:center; gap:14px;}
+.report2d-paper.rp-word .docx-wrapper > section.docx{box-shadow:0 14px 40px rgba(27,36,48,.14); margin:0;}
+.report2d-paper.rp-word .wb-block{margin:0;}
+.report2d-paper.rp-word .wb-block .rp-state-img{height:29mm;}
+.report2d-paper.rp-word .wb-wait{padding:30px; text-align:center; color:#6b7684; background:#fff;}
+.report2d-paper.rp-word table{border-collapse:collapse;}
+/* PDF : les marges haut/bas viennent du PDF (pour couper proprement les pages trop longues) */
+.report2d-paper.rp-word.pdf-export{width:auto; padding:0;}
+.report2d-paper.rp-word.pdf-export .docx-wrapper > section.docx{box-shadow:none; padding-top:0!important; padding-bottom:0!important; min-height:0!important;}
+/* les styles Word (span : police, taille, hauteur mini) ne doivent pas toucher les blocs générés */
+.report2d-paper.rp-word .wb-block{font-family:Carlito,Calibri,"Segoe UI",Arial,sans-serif; font-size:10pt; line-height:1.25; color:#000; white-space:normal;}
+.report2d-paper.rp-word .wb-block span,.report2d-paper.rp-word .wb-block i{font-family:inherit; min-height:0; white-space:normal;}
+.report2d-paper.rp-word .wb-block .rp-num{font-size:8pt; line-height:1;}
+.report2d-paper.rp-word .wb-block .rp-legend,.report2d-paper.rp-word .wb-block .rp-legend span{font-size:8pt;}
+.report2d-paper.rp-word .wb-block .rp-photo-idx{font-size:8pt;}
+.report2d-paper.rp-word .wb-block span:not(.rp-num){font-size:inherit;}
+/* html2canvas dessine le texte ~1 px plus bas que l'écran : on compense uniquement dans le PDF */
+.report2d-paper.pdf-export .rp-num{padding-bottom:2px;}
+.report2d-paper.pdf-export .rp-dot{top:0;}

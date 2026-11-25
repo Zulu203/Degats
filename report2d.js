@@ -381,6 +381,13 @@ function damageShort(d, box){
   return '<li><span class="rp-num" style="background:' + grav.color + '">' + escapeHtml(d.damageId) + '</span><span>' + escapeHtml(types) + ' — ' + escapeHtml(zoneLabel(d, box)) + '</span></li>';
 }
 
+function shortListHtml(box, items){
+  return items.length
+    ? '<ol class="rp-slist">' + items.map(function(d){ return damageShort(d, box); }).join('') + '</ol>' +
+      '<div class="rp-annex-note">' + escapeHtml(tr('reportSeeAnnex','Détail, vues et photos en annexe.')) + '</div>'
+    : '<p class="rp-empty">' + escapeHtml(tr('reportNoDamage','Aucun dégât constaté.')) + '</p>';
+}
+
 function stateHtml(box, items, shots){
   var list = items.length
     ? '<ol class="rp-slist">' + items.map(function(d){ return damageShort(d, box); }).join('') + '</ol>' +
@@ -431,6 +438,28 @@ function signaturesHtml(){
 }
 
 /* ---------- page 2 : annexe ---------- */
+function viewsHtml(shots){
+  var views = VIEW_DEFS.map(function(def){
+    return '<figure class="rp-view rp-view-' + def.id + '"><img alt="" src="' + shots[def.id].url + '"><figcaption>' + escapeHtml(tr(def.label,def.fallback)) + '</figcaption></figure>';
+  }).join('');
+  var legend = GRAVITIES.map(function(g){
+    return '<span><i class="rp-dot" style="background:' + g.color + '"></i>' + escapeHtml(gravName(g.id)) + '</span>';
+  }).join('');
+  return '<div class="rp-views">' + views + '</div><div class="rp-legend">' + legend + '</div>';
+}
+
+function damageTableHtml(box, items){
+  var rows = items.length ? items.map(function(d){
+    var grav = GRAVITIES.find(function(g){return g.id===d.gravity;}) || GRAVITIES[1];
+    var types = d.damageTypes.map(function(tp){return tp.name;}).join(', ');
+    var memo = typeof stripModelTag === 'function' ? stripModelTag(d.memo || '') : (d.memo || '');
+    var n = (PHOTOS[d.damageId] || (d.images || [])).length;
+    return '<tr><td class="c"><span class="rp-num" style="background:' + grav.color + '">' + escapeHtml(d.damageId) + '</span></td><td>' + escapeHtml(zoneLabel(d, box)) + '</td><td>' + escapeHtml(types) + '</td>' +
+      '<td class="nw"><i class="rp-dot" style="background:' + grav.color + '"></i>' + escapeHtml(gravName(d.gravity)) + '</td><td>' + escapeHtml(memo) + '</td><td class="c">' + (n || '–') + '</td></tr>';
+  }).join('') : '<tr><td colspan="6" class="c">' + escapeHtml(tr('reportNoDamage','Aucun dégât constaté.')) + '</td></tr>';
+  return '<table class="rp-table"><thead><tr><th>' + escapeHtml(tr('reportNo','N°')) + '</th><th>' + escapeHtml(tr('reportZone','Zone')) + '</th><th>' + escapeHtml(tr('reportTypes','Type(s)')) + '</th><th>' + escapeHtml(tr('reportSeverity','Gravité')) + '</th><th>' + escapeHtml(tr('reportMemo','Observation')) + '</th><th>' + escapeHtml(tr('reportPhotos','Photos')) + '</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
 function annexHtml(box, items, shots){
   var v = INFO.vehicle, j = INFO.job;
   var ref = [val(v.plate), [v.make, v.model].filter(Boolean).join(' '), val(j.number) || val(window.__ctxJob || '')].filter(Boolean).join(' · ');
@@ -476,6 +505,150 @@ function photosHtml(items){
   return '<h3 class="rp-photos-title">' + escapeHtml(tr('reportPhotosTitle','Photos des dégâts')) + '</h3><div class="rp-photos">' + cards.join('') + '</div>';
 }
 
+/* ------------------------------------------------------------------
+   Modèle Word (.docx) : modeles/<nom>.docx, champs {{...}} remplacés,
+   blocs {{VUES}} {{DEGATS}} {{PHOTOS}} {{VUE_DESSUS}} {{VUE_DESSUS_VIDE}} {{LISTE_DEGATS}}.
+   Activé par ?modele=<nom> dans l'adresse ou setModeleRapport('<nom>').
+   ------------------------------------------------------------------ */
+var WORD_LIBS = [
+  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+  'https://cdn.jsdelivr.net/npm/docx-preview@0.3.2/dist/docx-preview.min.js'
+];
+var _wordModel = (function(){
+  var m = /[?&]modele=([A-Za-z0-9_-]+)/.exec(location.search);
+  return m ? m[1] : '';
+})();
+var _wordCache = {};                 // url → ArrayBuffer
+var _wordRendering = Promise.resolve();
+var _wordSeq = 0;
+var _wordMarginY = 10;               // mm, lu dans le modèle (marge du haut)
+
+function wordTemplateUrl(){ return _wordModel ? 'modeles/' + _wordModel + '.docx' : ''; }
+
+function ensureWordLibs(){
+  if (window.docx && window.docx.renderAsync) return Promise.resolve();
+  return WORD_LIBS.reduce(function(p, url){ return p.then(function(){ return loadScript(url); }); }, Promise.resolve());
+}
+function loadWordTemplate(url){
+  if (_wordCache[url]) return Promise.resolve(_wordCache[url]);
+  return fetch(url, {cache:'no-cache'}).then(function(r){
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' ' + url);
+    return r.arrayBuffer();
+  }).then(function(buf){ _wordCache[url] = buf; return buf; });
+}
+
+function wordFields(){
+  var c = INFO.company || {}, cu = INFO.customer || {}, v = INFO.vehicle || {}, j = INFO.job || {}, L = INFO.loan || {}, T = INFO.terms || {};
+  var money = function(x){ return (x === undefined || x === null || x === false) ? '' : String(x); };
+  return {
+    'garage.nom': c.name, 'garage.adresse': c.address, 'garage.cp_ville': [c.zip, c.city].filter(Boolean).join(' '),
+    'garage.ville': c.city, 'garage.telephone': c.phone, 'garage.email': c.email, 'garage.tva': c.vat,
+    'or.numero': val(j.number) || val(window.__ctxJob || ''), 'or.date': formatDate(j.date),
+    'vehicule.numero': val(j.carstock) || val(window.__ctxCarstock || ''),
+    'client.nom': cu.name, 'client.adresse': cu.address, 'client.telephone': [cu.phone, cu.mobile].filter(Boolean).join(' / '),
+    'client.tel': cu.phone, 'client.gsm': cu.mobile, 'client.email': cu.email, 'client.permis': cu.licence,
+    'vehicule.marque': v.make, 'vehicule.modele': [v.model, v.version].filter(Boolean).join(' '),
+    'vehicule.marque_modele': [v.make, v.model, v.version].filter(Boolean).join(' ') || currentVehicleLabel(),
+    'vehicule.chassis': v.vin, 'vehicule.plaque': v.plate, 'vehicule.carburant': v.fuelType,
+    'vehicule.km': kmText(val(L.km) || val(v.km)),
+    'depart.date': formatDate(L.fromDate), 'depart.heure': L.fromTime, 'depart.km': kmText(val(L.km) || val(v.km)),
+    'depart.carburant': val(L.fuel) || val(v.fuel),
+    'retour.date': formatDate(L.toDate), 'retour.heure': L.toTime,
+    'tarif.nettoyage': money(T.cleaningFee), 'tarif.franchise': money(T.deductible), 'tarif.carburant': money(T.fuelPrice),
+    'tarif.km_jour': money(T.kmPerDay), 'tarif.prix_jour': money(T.dailyRate), 'tarif.prix_client': money(T.customerRate),
+    'observations': INFO.observations,
+    'date': formatDate(new Date()), 'lieu': INFO.place || c.city
+  };
+}
+
+/* Remplace les champs {{...}} d'un paragraphe, même si Word les a coupés en plusieurs morceaux */
+function fillParagraph(p, fields){
+  var walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT, null), nodes = [], n, text = '';
+  while ((n = walker.nextNode())) { nodes.push({node:n, start:text.length}); text += n.nodeValue; }
+  // {{champ}} : vide → « …… » à compléter ; {{champ?}} : vide → rien (et la ligne disparaît si elle reste vide)
+  var re = /\{\{\s*([A-Za-z0-9_.]+)(\?)?\s*\}\}/g, m, hits = [], optional = false;
+  while ((m = re.exec(text))) hits.push({from:m.index, to:m.index + m[0].length, key:m[1], opt:!!m[2]});
+  for (var h = hits.length - 1; h >= 0; h--) {
+    var hit = hits[h], value = fields[hit.key];
+    if (hit.opt) optional = true;
+    value = (value === undefined || value === null || value === '') ? (hit.opt ? '' : DOTS) : String(value);
+    var first = null;
+    nodes.forEach(function(e){
+      var s = e.start, len = e.node.nodeValue.length, end = s + len;
+      if (end <= hit.from || s >= hit.to) return;
+      var a = Math.max(hit.from - s, 0), b = Math.min(hit.to - s, len);
+      var txt = e.node.nodeValue;
+      if (!first) { first = e; e.node.nodeValue = txt.slice(0, a) + value + txt.slice(b); }
+      else e.node.nodeValue = txt.slice(0, a) + txt.slice(b);
+    });
+    // recalculer les positions pour le champ précédent
+    text = ''; nodes.forEach(function(e){ e.start = text.length; text += e.node.nodeValue; });
+  }
+  if (optional && !text.trim() && p.parentNode) p.parentNode.removeChild(p);
+}
+
+function fillWordDocument(root, fields, blocks){
+  Array.prototype.slice.call(root.querySelectorAll('p')).forEach(function(p){
+    var t = p.textContent;
+    if (t.indexOf('{{') < 0) return;
+    var only = /^\s*\{\{\s*([A-Z_]+)\s*\}\}\s*$/.exec(t);
+    if (only && blocks.hasOwnProperty(only[1])) {
+      var div = document.createElement('div');
+      div.className = 'wb-block wb-' + only[1].toLowerCase();
+      div.innerHTML = blocks[only[1]] || '';
+      p.parentNode.replaceChild(div, p);
+      return;
+    }
+    fillParagraph(p, fields);
+  });
+}
+
+/* Calibri n'existe pas sur Android : Carlito a exactement les mêmes dimensions */
+function swapCalibri(styleBox, root){
+  Array.prototype.forEach.call(styleBox.querySelectorAll('style'), function(st){
+    st.textContent = st.textContent.replace(/(['"]?)Calibri\1/g, 'Carlito, Calibri');
+  });
+  Array.prototype.forEach.call(root.querySelectorAll('[style*="Calibri"]'), function(el){
+    el.style.fontFamily = el.style.fontFamily.replace(/(['"]?)Calibri\1/g, 'Carlito, Calibri');
+  });
+}
+
+function renderWordReport(box, items, shots){
+  var paper = document.getElementById('report2DPaper');
+  var seq = ++_wordSeq, url = wordTemplateUrl();
+  paper.classList.add('rp-word');
+  var blocks = {
+    VUES: viewsHtml(shots),
+    DEGATS: damageTableHtml(box, items),
+    PHOTOS: photosHtml(items),
+    VUE_DESSUS: '<img class="rp-state-img" alt="" src="' + shots.top.url + '">',
+    VUE_DESSUS_VIDE: '<img class="rp-state-img" alt="" src="' + (lastTopUrl || '') + '">',
+    LISTE_DEGATS: shortListHtml(box, items)
+  };
+  var fields = wordFields();
+  if (!paper.querySelector('section.docx')) paper.innerHTML = '<p class="wb-wait">' + escapeHtml(tr('reportWordLoading','Chargement du modèle…')) + '</p>';
+  _wordRendering = ensureWordLibs().then(function(){ return loadWordTemplate(url); }).then(function(buf){
+    if (seq !== _wordSeq) return;               // un rendu plus récent a été demandé
+    var body = document.createElement('div'), styles = document.createElement('div');
+    return window.docx.renderAsync(buf, body, styles, {
+      className:'docx', inWrapper:true, ignoreWidth:false, ignoreHeight:true, ignoreFonts:false,
+      breakPages:true, ignoreLastRenderedPageBreak:true, renderHeaders:true, renderFooters:true,
+      useBase64URL:true, experimental:true
+    }).then(function(){
+      if (seq !== _wordSeq) return;
+      swapCalibri(styles, body);
+      fillWordDocument(body, fields, blocks);
+      var sec = body.querySelector('section.docx');
+      if (sec) { var pt = parseFloat(getComputedStyle(sec).paddingTop); if (pt > 0) _wordMarginY = pt * 25.4 / 96; }
+      paper.innerHTML = '';
+      paper.appendChild(styles); paper.appendChild(body);
+    });
+  }).catch(function(e){
+    console.error('Modèle Word', e);
+    if (seq === _wordSeq) paper.innerHTML = '<p class="wb-wait">' + escapeHtml(tr('reportWordError','Modèle Word introuvable ou illisible.')) + ' ' + escapeHtml(url) + '</p>';
+  });
+}
+
 var lastTopUrl = '';
 function render2DReport(){
   // Pendant la création du PDF, ne pas remplacer le rapport (html2canvas perdrait ses éléments :
@@ -495,6 +668,8 @@ function render2DReport(){
     lastViewStats.push({id:def.id, count:shot.count, ids:shot.ids});
   });
   lastTopUrl = captureView(VIEW_DEFS[1], box, []).url;
+  if (wordTemplateUrl()) { renderWordReport(box, items, shots); return true; }
+  document.getElementById('report2DPaper').classList.remove('rp-word');
   document.getElementById('report2DPaper').innerHTML =
     '<div class="rp-page">' + headerHtml() + partiesHtml() + stateHtml(box, items, shots) + conditionsHtml() + loanHtml() + signaturesHtml() + '</div>' +
     annexHtml(box, items, shots);
@@ -572,9 +747,10 @@ function breakPoints(el, scale){
   return pts.sort(function(a,b){ return a-b; });
 }
 
-function addBlockToPdf(pdf, el, state){
+function addBlockToPdf(pdf, el, state, mx, my){
+  mx = (mx == null) ? PDF_MARGIN_X : mx; my = (my == null) ? PDF_MARGIN_Y : my;
   return window.html2canvas(el, {scale:2, backgroundColor:'#ffffff', useCORS:true, logging:false}).then(function(canvas){
-    var pageW = 210 - 2*PDF_MARGIN_X, pageH = 297 - 2*PDF_MARGIN_Y;
+    var pageW = 210 - 2*mx, pageH = 297 - 2*my;
     var pxPerMm = canvas.width / pageW;
     var pageHpx = Math.floor(pageH * pxPerMm);
     var pts = breakPoints(el, canvas.width / el.getBoundingClientRect().width);
@@ -592,7 +768,7 @@ function addBlockToPdf(pdf, el, state){
       ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, slice.width, slice.height);
       ctx.drawImage(canvas, 0, y, canvas.width, end - y, 0, 0, canvas.width, end - y);
       if (state.pages > 0) pdf.addPage();
-      pdf.addImage(slice.toDataURL('image/jpeg', 0.85), 'JPEG', PDF_MARGIN_X, PDF_MARGIN_Y, pageW, (end - y) / pxPerMm);
+      pdf.addImage(slice.toDataURL('image/jpeg', 0.85), 'JPEG', mx, my, pageW, (end - y) / pxPerMm);
       state.pages++;
       y = end;
     }
@@ -609,13 +785,17 @@ function fontsReady(){
   return Promise.race([wait, new Promise(function(r){ setTimeout(r, 4000); })]).catch(function(){});
 }
 function buildReportPdf(){
-  return ensurePdfLibs().then(fontsReady).then(function(){
+  return ensurePdfLibs().then(fontsReady).then(function(){ return _wordRendering; }).then(function(){
     var paper = document.getElementById('report2DPaper');
+    var word = paper.classList.contains('rp-word');
+    if (word && !paper.querySelector('section.docx')) throw new Error(tr('reportWordError','Modèle Word introuvable ou illisible.'));
     paper.classList.add('pdf-export');
-    var blocks = Array.prototype.slice.call(paper.children);
+    // Modèle Word : une page Word = un bloc ; marges gauche/droite déjà dans la page, marges haut/bas du modèle
+    var blocks = word ? Array.prototype.slice.call(paper.querySelectorAll('section.docx')) : Array.prototype.slice.call(paper.children);
+    var mx = word ? 0 : null, my = word ? _wordMarginY : null;
     var pdf = new window.jspdf.jsPDF({unit:'mm', format:'a4', orientation:'portrait', compress:true});
     var state = {pages:0};
-    var chain = blocks.reduce(function(p, el){ return p.then(function(){ return addBlockToPdf(pdf, el, state); }); }, Promise.resolve());
+    var chain = blocks.reduce(function(p, el){ return p.then(function(){ return addBlockToPdf(pdf, el, state, mx, my); }); }, Promise.resolve());
     return chain.then(function(){
       paper.classList.remove('pdf-export');
       return {pdf:pdf, pages:state.pages};
@@ -743,6 +923,13 @@ window.ouvrirRapport = open2DReport;
 window.imprimerRapport = print2DReport;
 /* WinDev appelle setImpressionWinDev(true) après HTML_READY : « Imprimer » crée alors le PDF
    et l'envoie par REPORT_PDF au lieu d'appeler window.print() (sans effet dans la WebView Android). */
+/* setModeleRapport('standard') → modeles/standard.docx ; setModeleRapport('') → modèle intégré */
+window.setModeleRapport = function(name){
+  _wordModel = String(name || '').replace(/[^A-Za-z0-9_-]/g, '');
+  var overlay = document.getElementById('report2DOverlay');
+  if (overlay && overlay.classList.contains('open')) render2DReport();
+  return 'OK:' + (_wordModel || 'integre');
+};
 window.setImpressionWinDev = function(on){ window.__printViaWinDev = !!on; return 'OK'; };
 /* Sélection des dégâts du rapport depuis WinDev : setDegatsRapport([3,5]) ; setDegatsRapport(null) = tous */
 window.setDegatsRapport = function(ids){
